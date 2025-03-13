@@ -11,12 +11,6 @@ def InOrderTraversal(root):
         print(root.value, end=" ")
         InOrderTraversal(root.right)
 
-def SwapInOrderTraversal(root):
-    if root:
-        SwapInOrderTraversal(root.right)
-        print(root.value, end=" ")
-        SwapInOrderTraversal(root.left)
-
 #Pre-Order
 def PreOrderTraversal(root):
     if root:
