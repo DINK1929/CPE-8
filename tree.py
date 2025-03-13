@@ -52,7 +52,6 @@ InOrderTraversal(root)
 print("\nPost-order Traversal")
 PostOrderTraversal(root)
 
-
 print("\n\nSwapping Subtrees")
 swap_roots(root)
 
