@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS students (
     student_id TEXT UNIQUE,
     name TEXT,
     section TEXT,
-    points INTEGER DEFAULT 0
+    points INTEGER DEFAULT 0,
+    cleaning_day TEXT
 )
 ''')
 
@@ -48,6 +49,8 @@ cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, point
                ('0323-2037', 'Josh Gabriel D. Austria', 'BSCPE 2B', 0))
 cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
                ('0323-2038', 'Lance Justine P. Bunquin', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0324-0654', 'Prince John F. Castillo', 'BSCPE 2B', 0))
 cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
                ('0323-2039', 'Eve Nonjon A. Concordia', 'BSCPE 2B', 0))
 cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
@@ -91,9 +94,17 @@ cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, point
 cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
                ('0323-2058', 'Sachi L. Vispo', 'BSCPE 2B', 0))
 
-
 cursor.execute("INSERT OR IGNORE INTO teachers (teacher_id, name, section) VALUES (?, ?, ?)",
                ('0320-1025', 'Shaira Mae Bughaw', 'BSCPE 2B'))
+
+# --- Step 2: Assign cleaning days permanently ---
+cursor.execute("SELECT student_id FROM students ORDER BY student_id")
+all_students = cursor.fetchall()
+days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+
+for index, (student_id,) in enumerate(all_students):
+    assigned_day = days[index % 5]
+    cursor.execute("UPDATE students SET cleaning_day = ? WHERE student_id = ?", (assigned_day, student_id))
 
 conn.commit()
 

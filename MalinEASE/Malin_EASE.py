@@ -5,12 +5,12 @@ from kivy.core.window import Window
 from kivy.metrics import dp
 from kivy.properties import StringProperty
 from kivymd.uix.dialog import MDDialog
-from kivymd.uix.button import MDFlatButton
-from kivymd.uix.button import MDIconButton
+from kivymd.uix.button import MDFlatButton, MDIconButton
 
 from database import get_student_info, get_teacher_info
 
 Window.size = (360, 640)
+
 
 # --- Section Check Function ---
 def section_exists(input_section):
@@ -27,6 +27,29 @@ def section_exists(input_section):
 
     conn.close()
     return input_section in student_sections.union(teacher_sections)
+
+
+def generate_cleaners_list(self):
+    import sqlite3
+    conn = sqlite3.connect("malin_ease.db")
+    cursor = conn.cursor()
+
+    # Get students of the current section
+    cursor.execute("SELECT id, name FROM students WHERE lower(section) = ?", (self.section.lower(),))
+    students = cursor.fetchall()
+
+    # Sort alphabetically by name
+    students.sort(key=lambda x: x[1])
+
+    # Assign to days (Monday to Friday)
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+    for i, (student_id, _) in enumerate(students):
+        assigned_day = days[i % 5]
+        cursor.execute("UPDATE students SET cleaning_day = ? WHERE id = ?", (assigned_day, student_id))
+
+    conn.commit()
+    conn.close()
+
 
 # --- Kivy UI ---
 KV = '''
@@ -192,14 +215,22 @@ ScreenManager:
     name: 'cleaner_list'
     BoxLayout:
         orientation: 'vertical'
+
         MDIconButton:
             icon: "arrow-left"
             pos_hint: {"center_x": 0.05}
-            on_release: app.root.current = 'student_home'
+            on_release: root.go_back()
 
         MDLabel:
-            text: 'Cleaner List (Placeholder)'
+            text: 'Cleaner List'
             halign: 'center'
+            font_style: 'H6'
+            size_hint_y: None
+            height: dp(40)
+
+        ScrollView:
+            MDList:
+                id: cleaners_list
 
 <VoucherShopPage>:
     name: 'voucher_shop'
@@ -254,6 +285,7 @@ ScreenManager:
             halign: 'center'
 '''
 
+
 # --- Screen Classes ---
 class LoginPage(Screen):
     def submit(self):
@@ -279,11 +311,13 @@ class LoginPage(Screen):
             self.dialog.text = message
         self.dialog.open()
 
+
 class ChoicePage(Screen):
     def signin(self, role):
         self.manager.get_screen('signin').ids.signin_label.text = f'Sign In as {role}'
         self.manager.get_screen('signin').role = role
         self.manager.current = 'signin'
+
 
 class SignInPage(Screen):
     role = StringProperty("")
@@ -325,15 +359,58 @@ class SignInPage(Screen):
             self.dialog.text = text
         self.dialog.open()
 
+
 class StudentHomePage(Screen): pass
+
+
 class TeacherHomePage(Screen): pass
-class CleanerListPage(Screen): pass
+
+
+class CleanerListPage(Screen):
+    def on_enter(self):
+        self.display_cleaners()
+
+    def display_cleaners(self):
+        from kivymd.uix.label import MDLabel
+        from kivymd.uix.list import OneLineListItem
+
+        app = MDApp.get_running_app()
+        section = app.section
+        groups = app.get_cleaner_groups(section)
+
+        self.ids.cleaners_list.clear_widgets()
+        weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+
+        for day, students in zip(weekdays, groups):
+            self.ids.cleaners_list.add_widget(MDLabel(text=day, theme_text_color='Secondary', bold=True))
+            if students:
+                for name in students:
+                    self.ids.cleaners_list.add_widget(OneLineListItem(text=name))
+            else:
+                self.ids.cleaners_list.add_widget(OneLineListItem(text="No students assigned"))
+
+    def go_back(self):
+        app = MDApp.get_running_app()
+        if app.root.get_screen('signin').role == "Student":
+            app.root.current = 'student_home'
+        else:
+            app.root.current = 'teacher_home'
+
+
 class VoucherShopPage(Screen): pass
+
+
 class RatingFormPage(Screen): pass
+
+
 class VoucherApprovalPage(Screen): pass
+
+
 class StudentPointsPage(Screen): pass
 
+
 class MyApp(MDApp):
+    section = ""
     dialog = None
 
     def build(self):
@@ -353,6 +430,21 @@ class MyApp(MDApp):
     def logout(self, *args):
         self.dialog.dismiss()
         self.root.current = 'login'
+
+    def get_cleaner_groups(self, section):
+        import sqlite3
+        conn = sqlite3.connect("malin_ease.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM students WHERE lower(section) = ?", (section.lower(),))
+        names = [row[0] for row in cursor.fetchall()]
+        conn.close()
+
+        names.sort()
+        groups = [[] for _ in range(5)]
+        for i, name in enumerate(names):
+            groups[i % 5].append(name)
+        return groups
+
 
 if __name__ == '__main__':
     MyApp().run()
