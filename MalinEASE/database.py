@@ -39,7 +39,58 @@ CREATE TABLE IF NOT EXISTS vouchers (
 
 # --- Add sample data ---
 cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2034', 'John Ernest Rod P. Andal', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2035', 'Gilbert Paul Andrei P. Aragones', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2036', 'Ronald Aspuria', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2037', 'Josh Gabriel D. Austria', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2038', 'Lance Justine P. Bunquin', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2039', 'Eve Nonjon A. Concordia', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2040', 'John Clarence C. Coroza', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
                ('0323-2041', 'Dirk justine F. Cuenca', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2042', 'Cyrene E. Del Mundo', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2044', 'Steven Kirby T. Dichoso', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2045', 'Pierre Andrei F. Escalona', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2047', 'Raizen B. Lauron', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2048', 'James Adrian C. Malabanan', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2049', 'Jiro A. Medrano', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2050', 'Vanessa Nicole G. Meer', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2051', 'Benj B. Monesia', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2052', 'James Samuel B. navera', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2053', 'Ryza Mae B. Peñafiel', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2346', 'Ramil B. Pontalba JR.', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2054', 'Chrizhelle Mae A. Pulla', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0321-3621', 'Selwyn B. Retirado', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-4661', 'Dan Carl B. Solayao', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-4325', 'Renzter Luis S. Suarez', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2056', 'Jeaddeah F. Suministrado', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-4533', 'Derick Emmanuel R. Torbela', 'BSCPE 2B', 0))
+cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
+               ('0323-2058', 'Sachi L. Vispo', 'BSCPE 2B', 0))
+
 
 cursor.execute("INSERT OR IGNORE INTO teachers (teacher_id, name, section) VALUES (?, ?, ?)",
                ('0320-1025', 'Shaira Mae Bughaw', 'BSCPE 2B'))
