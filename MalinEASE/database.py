@@ -121,5 +121,8 @@ def get_teacher_info(teacher_id):
     return cursor.fetchone()  # (name, section)
 
 def section_exists(section):
-    cursor.execute("SELECT 1 FROM students WHERE LOWER(section) = LOWER(?) LIMIT 1", (section,))
-    return cursor.fetchone() is not None
+    cursor.execute("SELECT 1 FROM students WHERE section = ? LIMIT 1", (section,))
+    student_exists = cursor.fetchone()
+    cursor.execute("SELECT 1 FROM teachers WHERE section = ? LIMIT 1", (section,))
+    teacher_exists = cursor.fetchone()
+    return student_exists or teacher_exists
