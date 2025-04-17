@@ -6,11 +6,29 @@ from kivy.metrics import dp
 from kivy.properties import StringProperty
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.button import MDFlatButton
+from kivymd.uix.button import MDIconButton
 
-from database import get_student_info, get_teacher_info, section_exists  # Import the new function
+from database import get_student_info, get_teacher_info
 
 Window.size = (360, 640)
 
+# --- Section Check Function ---
+def section_exists(input_section):
+    input_section = input_section.strip().lower()
+    import sqlite3
+    conn = sqlite3.connect("malin_ease.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT DISTINCT section FROM students")
+    student_sections = {row[0].lower() for row in cursor.fetchall()}
+
+    cursor.execute("SELECT DISTINCT section FROM teachers")
+    teacher_sections = {row[0].lower() for row in cursor.fetchall()}
+
+    conn.close()
+    return input_section in student_sections.union(teacher_sections)
+
+# --- Kivy UI ---
 KV = '''
 ScreenManager:
     LoginPage:
@@ -53,6 +71,11 @@ ScreenManager:
         padding: dp(20)
         spacing: dp(10)
 
+        MDIconButton:
+            icon: "arrow-left"
+            pos_hint: {"center_x": 0.05}
+            on_release: app.root.current = 'login'
+
         MDLabel:
             id: choice_label
             halign: 'center'
@@ -64,12 +87,10 @@ ScreenManager:
 
         MDRaisedButton:
             text: 'Teacher'
-            halign: 'center'
             on_press: root.signin('Teacher')
 
         MDRaisedButton:
             text: 'Student'
-            halign: 'center'
             on_press: root.signin('Student')
 
 <SignInPage>:
@@ -78,6 +99,11 @@ ScreenManager:
         orientation: 'vertical'
         padding: dp(20)
         spacing: dp(10)
+
+        MDIconButton:
+            icon: "arrow-left"
+            pos_hint: {"center_x": 0.05}
+            on_release: app.root.current = 'choice'
 
         MDLabel:
             id: signin_label
@@ -99,6 +125,14 @@ ScreenManager:
         orientation: 'vertical'
         padding: dp(20)
         spacing: dp(10)
+
+        BoxLayout:
+            size_hint_y: None
+            height: dp(40)
+            MDIconButton:
+                icon: "logout"
+                on_release: app.confirm_logout()
+                pos_hint: {"center_y": 0.5}
 
         MDLabel:
             id: student_info
@@ -129,6 +163,14 @@ ScreenManager:
         padding: dp(20)
         spacing: dp(10)
 
+        BoxLayout:
+            size_hint_y: None
+            height: dp(40)
+            MDIconButton:
+                icon: "logout"
+                on_release: app.confirm_logout()
+                pos_hint: {"center_y": 0.5}
+
         MDLabel:
             id: teacher_info
             halign: 'center'
@@ -150,6 +192,11 @@ ScreenManager:
     name: 'cleaner_list'
     BoxLayout:
         orientation: 'vertical'
+        MDIconButton:
+            icon: "arrow-left"
+            pos_hint: {"center_x": 0.05}
+            on_release: app.root.current = 'student_home'
+
         MDLabel:
             text: 'Cleaner List (Placeholder)'
             halign: 'center'
@@ -158,6 +205,11 @@ ScreenManager:
     name: 'voucher_shop'
     BoxLayout:
         orientation: 'vertical'
+        MDIconButton:
+            icon: "arrow-left"
+            pos_hint: {"center_x": 0.05}
+            on_release: app.root.current = 'student_home'
+
         MDLabel:
             text: 'Voucher Shop (Placeholder)'
             halign: 'center'
@@ -166,6 +218,11 @@ ScreenManager:
     name: 'rating_form'
     BoxLayout:
         orientation: 'vertical'
+        MDIconButton:
+            icon: "arrow-left"
+            pos_hint: {"center_x": 0.05}
+            on_release: app.root.current = 'student_home'
+
         MDLabel:
             text: 'Rate Cleaners (Placeholder)'
             halign: 'center'
@@ -174,6 +231,11 @@ ScreenManager:
     name: 'voucher_approval'
     BoxLayout:
         orientation: 'vertical'
+        MDIconButton:
+            icon: "arrow-left"
+            pos_hint: {"center_x": 0.05}
+            on_release: app.root.current = 'teacher_home'
+
         MDLabel:
             text: 'Voucher Approval (Placeholder)'
             halign: 'center'
@@ -182,24 +244,28 @@ ScreenManager:
     name: 'student_points'
     BoxLayout:
         orientation: 'vertical'
+        MDIconButton:
+            icon: "arrow-left"
+            pos_hint: {"center_x": 0.05}
+            on_release: app.root.current = 'teacher_home'
+
         MDLabel:
             text: 'Student Points (Placeholder)'
             halign: 'center'
 '''
 
-
-# --- Screens ---
+# --- Screen Classes ---
 class LoginPage(Screen):
     def submit(self):
         section = self.ids.section_input.text.strip()
         if section:
-            if section_exists(section):  # This uses the case-insensitive check
+            if section_exists(section):
                 app = MDApp.get_running_app()
                 app.section = section
                 self.manager.get_screen('choice').ids.choice_label.text = f'You are in {section}'
                 self.manager.current = 'choice'
             else:
-                self.show_error("Section not found.")
+                self.show_error("Section not found in the database.")
         else:
             self.show_error("Please enter your section.")
 
@@ -213,41 +279,14 @@ class LoginPage(Screen):
             self.dialog.text = message
         self.dialog.open()
 
-
-    def show_error(self, message):
-        if not hasattr(self, 'dialog') or not self.dialog:
-            self.dialog = MDDialog(
-                text=message,
-                buttons=[MDFlatButton(text="OK", on_release=lambda x: self.dialog.dismiss())]
-            )
-        else:
-            self.dialog.text = message
-        self.dialog.open()
-
-
 class ChoicePage(Screen):
     def signin(self, role):
         self.manager.get_screen('signin').ids.signin_label.text = f'Sign In as {role}'
         self.manager.get_screen('signin').role = role
         self.manager.current = 'signin'
 
-
 class SignInPage(Screen):
     role = StringProperty("")
-    dialog = None
-
-    def on_pre_enter(self, *args):
-        self.ids.signin_label.text = f"Sign In as {self.role}"
-
-    def show_dialog(self, text):
-        if not self.dialog:
-            self.dialog = MDDialog(
-                text=text,
-                buttons=[MDFlatButton(text="OK", on_release=lambda x: self.dialog.dismiss())]
-            )
-        else:
-            self.dialog.text = text
-        self.dialog.open()
 
     def signin(self):
         id_number = self.ids.id_input.text.strip()
@@ -276,39 +315,44 @@ class SignInPage(Screen):
             else:
                 self.show_dialog("Teacher not found.")
 
+    def show_dialog(self, text):
+        if not hasattr(self, 'dialog') or not self.dialog:
+            self.dialog = MDDialog(
+                text=text,
+                buttons=[MDFlatButton(text="OK", on_release=lambda x: self.dialog.dismiss())]
+            )
+        else:
+            self.dialog.text = text
+        self.dialog.open()
 
-class StudentHomePage(Screen):
-    pass
+class StudentHomePage(Screen): pass
+class TeacherHomePage(Screen): pass
+class CleanerListPage(Screen): pass
+class VoucherShopPage(Screen): pass
+class RatingFormPage(Screen): pass
+class VoucherApprovalPage(Screen): pass
+class StudentPointsPage(Screen): pass
 
-
-class TeacherHomePage(Screen):
-    pass
-
-
-class CleanerListPage(Screen):
-    pass
-
-
-class VoucherShopPage(Screen):
-    pass
-
-
-class RatingFormPage(Screen):
-    pass
-
-
-class VoucherApprovalPage(Screen):
-    pass
-
-
-class StudentPointsPage(Screen):
-    pass
-
-
-# --- App ---
 class MyApp(MDApp):
+    dialog = None
+
     def build(self):
         return Builder.load_string(KV)
+
+    def confirm_logout(self):
+        if not self.dialog:
+            self.dialog = MDDialog(
+                text="Are you sure you want to log out?",
+                buttons=[
+                    MDFlatButton(text="No", on_release=lambda x: self.dialog.dismiss()),
+                    MDFlatButton(text="Yes", on_release=self.logout)
+                ]
+            )
+        self.dialog.open()
+
+    def logout(self, *args):
+        self.dialog.dismiss()
+        self.root.current = 'login'
 
 if __name__ == '__main__':
     MyApp().run()
