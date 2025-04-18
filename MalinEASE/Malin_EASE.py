@@ -11,7 +11,6 @@ from database import get_student_info, get_teacher_info
 
 Window.size = (360, 640)
 
-
 # --- Section Check Function ---
 def section_exists(input_section):
     input_section = input_section.strip().lower()
@@ -28,7 +27,6 @@ def section_exists(input_section):
     conn.close()
     return input_section in student_sections.union(teacher_sections)
 
-
 def generate_cleaners_list(self):
     import sqlite3
     conn = sqlite3.connect("malin_ease.db")
@@ -38,10 +36,10 @@ def generate_cleaners_list(self):
     cursor.execute("SELECT id, name FROM students WHERE lower(section) = ?", (self.section.lower(),))
     students = cursor.fetchall()
 
-    # Sort alphabetically by name
+        # Sort alphabetically by name
     students.sort(key=lambda x: x[1])
 
-    # Assign to days (Monday to Friday)
+        # Assign to days (Monday to Friday)
     days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
     for i, (student_id, _) in enumerate(students):
         assigned_day = days[i % 5]
@@ -49,7 +47,6 @@ def generate_cleaners_list(self):
 
     conn.commit()
     conn.close()
-
 
 # --- Kivy UI ---
 KV = '''
@@ -215,22 +212,20 @@ ScreenManager:
     name: 'cleaner_list'
     BoxLayout:
         orientation: 'vertical'
+        spacing: dp(10)
 
-        MDIconButton:
-            icon: "arrow-left"
-            pos_hint: {"center_x": 0.05}
-            on_release: root.go_back()
-
-        MDLabel:
-            text: 'Cleaner List'
-            halign: 'center'
-            font_style: 'H6'
-            size_hint_y: None
-            height: dp(40)
+        MDTopAppBar:
+            title: "Cleaner List"
+            elevation: 4
+            left_action_items: [["arrow-left", lambda x: root.go_back()]]
 
         ScrollView:
-            MDList:
+            MDBoxLayout:
                 id: cleaners_list
+                orientation: 'vertical'
+                padding: dp(10)
+                spacing: dp(10)
+                adaptive_height: True
 
 <VoucherShopPage>:
     name: 'voucher_shop'
@@ -285,7 +280,6 @@ ScreenManager:
             halign: 'center'
 '''
 
-
 # --- Screen Classes ---
 class LoginPage(Screen):
     def submit(self):
@@ -311,13 +305,11 @@ class LoginPage(Screen):
             self.dialog.text = message
         self.dialog.open()
 
-
 class ChoicePage(Screen):
     def signin(self, role):
         self.manager.get_screen('signin').ids.signin_label.text = f'Sign In as {role}'
         self.manager.get_screen('signin').role = role
         self.manager.current = 'signin'
-
 
 class SignInPage(Screen):
     role = StringProperty("")
@@ -359,12 +351,8 @@ class SignInPage(Screen):
             self.dialog.text = text
         self.dialog.open()
 
-
 class StudentHomePage(Screen): pass
-
-
 class TeacherHomePage(Screen): pass
-
 
 class CleanerListPage(Screen):
     def on_enter(self):
@@ -372,6 +360,8 @@ class CleanerListPage(Screen):
 
     def display_cleaners(self):
         from kivymd.uix.label import MDLabel
+        from kivymd.uix.card import MDCard
+        from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.list import OneLineListItem
 
         app = MDApp.get_running_app()
@@ -382,12 +372,34 @@ class CleanerListPage(Screen):
         weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
         for day, students in zip(weekdays, groups):
-            self.ids.cleaners_list.add_widget(MDLabel(text=day, theme_text_color='Secondary', bold=True))
+            day_card = MDCard(
+                orientation='vertical',
+                size_hint=(1, None),
+                padding=dp(10),
+                spacing=dp(5),
+                elevation=4,
+                radius=[15, 15, 15, 15],
+                md_bg_color=(1, 1, 1, 1)
+            )
+            day_card.bind(minimum_height=day_card.setter('height'))
+
+            day_title = MDLabel(
+                text=day,
+                bold=True,
+                theme_text_color='Primary',
+                font_style='H6',
+                size_hint_y=None,
+                height=dp(30)
+            )
+            day_card.add_widget(day_title)
+
             if students:
                 for name in students:
-                    self.ids.cleaners_list.add_widget(OneLineListItem(text=name))
+                    day_card.add_widget(OneLineListItem(text=name))
             else:
-                self.ids.cleaners_list.add_widget(OneLineListItem(text="No students assigned"))
+                day_card.add_widget(OneLineListItem(text="No students assigned"))
+
+            self.ids.cleaners_list.add_widget(day_card)
 
     def go_back(self):
         app = MDApp.get_running_app()
@@ -396,18 +408,10 @@ class CleanerListPage(Screen):
         else:
             app.root.current = 'teacher_home'
 
-
 class VoucherShopPage(Screen): pass
-
-
 class RatingFormPage(Screen): pass
-
-
 class VoucherApprovalPage(Screen): pass
-
-
 class StudentPointsPage(Screen): pass
-
 
 class MyApp(MDApp):
     section = ""
@@ -444,7 +448,6 @@ class MyApp(MDApp):
         for i, name in enumerate(names):
             groups[i % 5].append(name)
         return groups
-
 
 if __name__ == '__main__':
     MyApp().run()
