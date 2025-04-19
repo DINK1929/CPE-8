@@ -366,12 +366,28 @@ class CleanerListPage(Screen):
 
         app = MDApp.get_running_app()
         section = app.section
-        groups = app.get_cleaner_groups(section)
+
+        # Fetch students assigned to cleaning days from the database
+        import sqlite3
+        conn = sqlite3.connect("malin_ease.db")
+        cursor = conn.cursor()
+
+        # Get students assigned to each cleaning day
+        cursor.execute("SELECT name, cleaning_day FROM students WHERE lower(section) = ?", (section.lower(),))
+        students = cursor.fetchall()
+
+        # Organize students into groups based on cleaning day
+        cleaners_by_day = {day: [] for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']}
+        for name, cleaning_day in students:
+            cleaners_by_day[cleaning_day].append(name)
+
+        conn.close()
 
         self.ids.cleaners_list.clear_widgets()
         weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
-        for day, students in zip(weekdays, groups):
+        # Display the students by their assigned cleaning days
+        for day in weekdays:
             day_card = MDCard(
                 orientation='vertical',
                 size_hint=(1, None),
@@ -393,8 +409,10 @@ class CleanerListPage(Screen):
             )
             day_card.add_widget(day_title)
 
-            if students:
-                for name in students:
+            # If there are students for this day, display their names
+            students_for_day = cleaners_by_day.get(day, [])
+            if students_for_day:
+                for name in students_for_day:
                     day_card.add_widget(OneLineListItem(text=name))
             else:
                 day_card.add_widget(OneLineListItem(text="No students assigned"))
@@ -413,7 +431,7 @@ class RatingFormPage(Screen): pass
 class VoucherApprovalPage(Screen): pass
 class StudentPointsPage(Screen): pass
 
-class MyApp(MDApp):
+class MalinEASEApp(MDApp):
     section = ""
     dialog = None
 
@@ -450,4 +468,4 @@ class MyApp(MDApp):
         return groups
 
 if __name__ == '__main__':
-    MyApp().run()
+    MalinEASEApp().run()
