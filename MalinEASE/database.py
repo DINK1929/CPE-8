@@ -3,15 +3,15 @@ import sqlite3
 conn = sqlite3.connect('malin_ease.db')
 cursor = conn.cursor()
 
-# --- Drop & Recreate Tables for Development (avoids schema mismatch) ---
+# --- Drop & Recreate Tables for Development ---
 cursor.execute("DROP TABLE IF EXISTS students")
 cursor.execute("DROP TABLE IF EXISTS teachers")
 cursor.execute("DROP TABLE IF EXISTS vouchers")
-cursor.execute("DROP TABLE IF EXISTS ratings")
+cursor.execute("DROP TABLE IF EXISTS ratings")  # Drop the ratings table if it exists
 
-# --- Create tables with name fields ---
+# --- Create tables ---
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS students (
+CREATE TABLE students (
     id INTEGER PRIMARY KEY,
     student_id TEXT UNIQUE,
     name TEXT,
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS students (
 ''')
 
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS teachers (
+CREATE TABLE teachers (
     id INTEGER PRIMARY KEY,
     teacher_id TEXT UNIQUE,
     name TEXT,
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS teachers (
 ''')
 
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS vouchers (
+CREATE TABLE vouchers (
     id INTEGER PRIMARY KEY,
     student_id TEXT,
     status TEXT,
@@ -39,71 +39,65 @@ CREATE TABLE IF NOT EXISTS vouchers (
 )
 ''')
 
+# Create the ratings table
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS ratings (
-    rater_id TEXT,
-    ratee_id TEXT,
-    score INTEGER,
-    section TEXT,
-    PRIMARY KEY (rater_id, ratee_id),
-    FOREIGN KEY (rater_id) REFERENCES students(student_id),
-    FOREIGN KEY (ratee_id) REFERENCES students(student_id)
+    id INTEGER PRIMARY KEY,
+    student_id TEXT,
+    groupmate_id TEXT,
+    rating INTEGER,
+    FOREIGN KEY (student_id) REFERENCES students(student_id),
+    FOREIGN KEY (groupmate_id) REFERENCES students(student_id)
 )
 ''')
 
-# --- Add sample data ---
+# --- Sample data ---
 sample_students = [
-    ('0323-2034', 'John Ernest Rod P. Andal'),
-    ('0323-2035', 'Gilbert Paul Andrei P. Aragones'),
-    ('0323-2036', 'Ronald Aspuria'),
-    ('0323-2037', 'Josh Gabriel D. Austria'),
-    ('0323-2038', 'Lance Justine P. Bunquin'),
-    ('0324-0654', 'Prince John F. Castillo'),
-    ('0323-2039', 'Eve Nonjon A. Concordia'),
-    ('0323-2040', 'John Clarence C. Coroza'),
-    ('0323-2041', 'Dirk justine F. Cuenca'),
-    ('0323-2042', 'Cyrene E. Del Mundo'),
-    ('0323-2044', 'Steven Kirby T. Dichoso'),
-    ('0323-2045', 'Pierre Andrei F. Escalona'),
-    ('0323-2047', 'Raizen B. Lauron'),
-    ('0323-2048', 'James Adrian C. Malabanan'),
-    ('0323-2049', 'Jiro A. Medrano'),
-    ('0323-2050', 'Vanessa Nicole G. Meer'),
-    ('0323-2051', 'Benj B. Monesia'),
-    ('0323-2052', 'James Samuel B. navera'),
-    ('0323-2053', 'Ryza Mae B. Peñafiel'),
-    ('0323-2346', 'Ramil B. Pontalba JR.'),
-    ('0323-2054', 'Chrizhelle Mae A. Pulla'),
-    ('0321-3621', 'Selwyn B. Retirado'),
-    ('0323-4661', 'Dan Carl B. Solayao'),
-    ('0323-4325', 'Renzter Luis S. Suarez'),
-    ('0323-2056', 'Jeaddeah F. Suministrado'),
-    ('0323-4533', 'Derick Emmanuel R. Torbela'),
-    ('0323-2058', 'Sachi L. Vispo')
+    ('0323-2034', 'John Ernest Rod P. Andal', 'Monday'),
+    ('0323-2035', 'Gilbert Paul Andrei P. Aragones', 'Monday'),
+    ('0323-2036', 'Ronald Aspuria', 'Monday'),
+    ('0323-2037', 'Josh Gabriel D. Austria', 'Monday'),
+    ('0323-2038', 'Lance Justine P. Bunquin', 'Monday'),
+    ('0324-0654', 'Prince John F. Castillo', 'Monday'),
+    ('0323-2039', 'Eve Nonjon A. Concordia', 'Tuesday'),
+    ('0323-2040', 'John Clarence C. Coroza', 'Tuesday'),
+    ('0323-2041', 'Dirk Justine F. Cuenca', 'Tuesday'),
+    ('0323-2042', 'Cyrene E. Del Mundo', 'Tuesday'),
+    ('0323-2044', 'Steven Kirby T. Dichoso', 'Tuesday'),
+    ('0323-2045', 'Pierre Andrei F. Escalona', 'Tuesday'),
+    ('0323-2047', 'Raizen B. Lauron', 'Wednesday'),
+    ('0323-2048', 'James Adrian C. Malabanan', 'Wednesday'),
+    ('0323-2049', 'Jiro A. Medrano', 'Wednesday'),
+    ('0323-2050', 'Vanessa Nicole G. Meer', 'Wednesday'),
+    ('0323-2051', 'Benj B. Monesia', 'Wednesday'),
+    ('0323-2052', 'James Samuel B. Navera', 'Thursday'),
+    ('0323-2053', 'Ryza Mae B. Peñafiel', 'Thursday'),
+    ('0323-2346', 'Ramil B. Pontalba JR.', 'Thursday'),
+    ('0323-2054', 'Chrizhelle Mae A. Pulla', 'Thursday'),
+    ('0321-3621', 'Selwyn B. Retirado', 'Thursday'),
+    ('0323-4661', 'Dan Carl B. Solayao', 'Friday'),
+    ('0323-4325', 'Renzter Luis S. Suarez', 'Friday'),
+    ('0323-2056', 'Jeaddeah F. Suministrado', 'Friday'),
+    ('0323-4533', 'Derick Emmanuel R. Torbela', 'Friday'),
+    ('0323-2058', 'Sachi L. Vispo', 'Friday')
 ]
 
-for student_id, name in sample_students:
-    cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points) VALUES (?, ?, ?, ?)",
-                   (student_id, name, 'BSCPE 2B', 0))
-
-cursor.execute("INSERT OR IGNORE INTO teachers (teacher_id, name, section) VALUES (?, ?, ?)",
-               ('0320-1025', 'Shaira Mae Bughaw', 'BSCPE 2B'))
-
-# --- Step 2: Assign cleaning days permanently ---
-cursor.execute("SELECT student_id FROM students ORDER BY student_id")
-all_students = cursor.fetchall()
-days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-
-for index, (student_id,) in enumerate(all_students):
-    assigned_day = days[index % 5]
-    cursor.execute("UPDATE students SET cleaning_day = ? WHERE student_id = ?", (assigned_day, student_id))
+# Insert into the database with the cleaning day
+for student_id, name, cleaning_day in sample_students:
+    cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points, cleaning_day) VALUES (?, ?, ?, ?, ?)",
+                   (student_id, name, 'BSCPE 2B', 0, cleaning_day))
 
 conn.commit()
 
-# --- Database functions ---
-def insert_student(student_id, name, section):
-    cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section) VALUES (?, ?, ?)",
-                   (student_id, name, section))
+# Insert teacher data
+cursor.execute("INSERT OR IGNORE INTO teachers (teacher_id, name, section) VALUES (?, ?, ?)",
+               ('0320-1025', 'Shaira Mae Bughaw', 'BSCPE 2B'))
+conn.commit()
+
+# --- Database Functions ---
+def insert_student(student_id, name, section, cleaning_day, points):
+    cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, cleaning_day) VALUES (?, ?, ?, ?, ?)",
+                   (student_id, name, section, cleaning_day, points))
     conn.commit()
 
 def get_points(student_id):
@@ -117,11 +111,15 @@ def update_points(student_id, points):
 
 def get_student_info(student_id):
     cursor.execute("SELECT name, section, points FROM students WHERE student_id = ?", (student_id,))
-    return cursor.fetchone()  # (name, section, points)
+    return cursor.fetchone()
+
+def assign_cleaning_day(student_id, day):
+    cursor.execute("UPDATE students SET cleaning_day = ? WHERE student_id = ?", (day, student_id))
+    conn.commit()
 
 def get_teacher_info(teacher_id):
     cursor.execute("SELECT name, section FROM teachers WHERE teacher_id = ?", (teacher_id,))
-    return cursor.fetchone()  # (name, section)
+    return cursor.fetchone()
 
 def section_exists(section):
     cursor.execute("SELECT 1 FROM students WHERE section = ? LIMIT 1", (section,))
@@ -130,26 +128,16 @@ def section_exists(section):
     teacher_exists = cursor.fetchone()
     return student_exists or teacher_exists
 
-# --- Rating System Functions ---
-def submit_ratings(rater_id, section, ratings_dict):
-    for ratee_id, score in ratings_dict.items():
-        cursor.execute('''
-            INSERT OR REPLACE INTO ratings (rater_id, ratee_id, score, section)
-            VALUES (?, ?, ?, ?)
-        ''', (rater_id, ratee_id, score, section))
+# --- Ratings Functions ---
+def insert_rating(student_id, groupmate_id, rating):
+    cursor.execute("INSERT INTO ratings (student_id, groupmate_id, rating) VALUES (?, ?, ?)",
+                   (student_id, groupmate_id, rating))
     conn.commit()
 
-def update_points_from_ratings(section):
-    cursor.execute('''
-        SELECT ratee_id, AVG(score) as avg_score
-        FROM ratings
-        WHERE section = ?
-        GROUP BY ratee_id
-    ''', (section,))
-    results = cursor.fetchall()
+def get_ratings_for_student(student_id):
+    cursor.execute("SELECT groupmate_id, rating FROM ratings WHERE student_id = ?", (student_id,))
+    return cursor.fetchall()
 
-    for ratee_id, avg_score in results:
-        points = int(round(avg_score))  # Simple mapping: 1 point = 1 avg rating
-        cursor.execute('UPDATE students SET points = ? WHERE student_id = ?', (points, ratee_id))
-
-    conn.commit()
+def get_average_rating(student_id):
+    cursor.execute("SELECT AVG(rating) FROM ratings WHERE groupmate_id = ?", (student_id,))
+    return cursor.fetchone()[0] or 0
