@@ -5,7 +5,11 @@ from kivy.core.window import Window
 from kivy.metrics import dp
 from kivy.properties import StringProperty
 from kivymd.uix.dialog import MDDialog
-from kivymd.uix.button import MDFlatButton, MDIconButton
+from kivymd.uix.button import MDFlatButton, MDRaisedButton
+from kivymd.uix.boxlayout import MDBoxLayout
+from kivymd.uix.label import MDLabel
+from kivymd.uix.slider import MDSlider
+from kivymd.uix.card import MDCard
 
 from database import get_student_info, get_teacher_info
 
@@ -26,6 +30,9 @@ def section_exists(input_section):
 
     conn.close()
     return input_section in student_sections.union(teacher_sections)
+
+def change_screen(self, screen_name):
+    self.root.current = screen_name
 
 def generate_cleaners_list(self):
     import sqlite3
@@ -244,14 +251,21 @@ ScreenManager:
     name: 'rating_form'
     BoxLayout:
         orientation: 'vertical'
-        MDIconButton:
-            icon: "arrow-left"
-            pos_hint: {"center_x": 0.05}
-            on_release: app.root.current = 'student_home'
+        spacing: dp(10)
 
-        MDLabel:
-            text: 'Rate Cleaners (Placeholder)'
-            halign: 'center'
+        MDTopAppBar:
+            title: "Rate Groupmates"
+            elevation: 4
+            left_action_items: [["arrow-left", lambda x: app.change_screen('student_home')]]
+
+        ScrollView:
+            MDBoxLayout:
+                id: rating_form_container
+                orientation: 'vertical'
+                padding: dp(10)
+                spacing: dp(20)
+                adaptive_height: True
+
 
 <VoucherApprovalPage>:
     name: 'voucher_approval'
@@ -427,7 +441,80 @@ class CleanerListPage(Screen):
             app.root.current = 'teacher_home'
 
 class VoucherShopPage(Screen): pass
-class RatingFormPage(Screen): pass
+class RatingFormPage(Screen):
+    def on_enter(self):
+        self.display_groupmates()
+
+    def display_groupmates(self):
+        self.ids.rating_form_container.clear_widgets()
+        app = MDApp.get_running_app()
+        current_id = app.root.get_screen('signin').ids.id_input.text.strip()
+
+        import sqlite3
+        conn = sqlite3.connect("malin_ease.db")
+        cursor = conn.cursor()
+
+        # Get current student's cleaning day and name
+        cursor.execute("SELECT cleaning_day, name FROM students WHERE student_id = ?", (current_id,))
+        result = cursor.fetchone()
+
+        if result:
+            cleaning_day, student_name = result
+
+            # Get all groupmates (same day, same section, different ID)
+            cursor.execute("""
+                SELECT student_id, name FROM students 
+                WHERE cleaning_day = ? AND student_id != ?
+            """, (cleaning_day, current_id))
+            groupmates = cursor.fetchall()
+
+            # Store sliders for later access
+            self.slider_data = {}
+
+            for sid, name in groupmates:
+                card = MDCard(orientation="vertical", padding=10, size_hint_y=None)
+                card.height = dp(100)
+
+                label = MDLabel(text=name, halign="center")
+                slider = MDSlider(min=0, max=10, value=5, step=1)
+                self.slider_data[sid] = slider
+
+                card.add_widget(label)
+                card.add_widget(slider)
+                self.ids.rating_form_container.add_widget(card)
+
+            # Add Submit Button
+            submit_btn = MDRaisedButton(
+                text="Submit Ratings",
+                pos_hint={"center_x": 0.5},
+                on_release=self.submit_ratings
+            )
+            self.ids.rating_form_container.add_widget(submit_btn)
+
+        conn.close()
+
+    def submit_ratings(self, instance):
+        app = MDApp.get_running_app()
+        current_id = app.root.get_screen('signin').ids.id_input.text.strip()
+
+        import sqlite3
+        conn = sqlite3.connect("malin_ease.db")
+        cursor = conn.cursor()
+
+        for groupmate_id, slider in self.slider_data.items():
+            rating = int(slider.value)
+            cursor.execute("""
+                INSERT INTO ratings (student_id, groupmate_id, rating)
+                VALUES (?, ?, ?)
+            """, (current_id, groupmate_id, rating))
+
+        conn.commit()
+        conn.close()
+
+        self.ids.rating_form_container.clear_widgets()
+        self.ids.rating_form_container.add_widget(
+            MDLabel(text="Ratings submitted successfully!", halign="center")
+        )
 class VoucherApprovalPage(Screen): pass
 class StudentPointsPage(Screen): pass
 
