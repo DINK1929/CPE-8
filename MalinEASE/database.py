@@ -3,11 +3,15 @@ import sqlite3
 conn = sqlite3.connect('malin_ease.db')
 cursor = conn.cursor()
 
+# Enable foreign key constraints (important for SQLite)
+cursor.execute("PRAGMA foreign_keys = ON;")
+
 # --- Drop & Recreate Tables for Development ---
+# Drop tables that depend on 'students' first
+cursor.execute("DROP TABLE IF EXISTS vouchers")
+cursor.execute("DROP TABLE IF EXISTS ratings")
 cursor.execute("DROP TABLE IF EXISTS students")
 cursor.execute("DROP TABLE IF EXISTS teachers")
-cursor.execute("DROP TABLE IF EXISTS vouchers")
-cursor.execute("DROP TABLE IF EXISTS ratings")  # Drop the ratings table if it exists
 
 # --- Create tables ---
 cursor.execute('''
@@ -16,7 +20,7 @@ CREATE TABLE students (
     student_id TEXT UNIQUE,
     name TEXT,
     section TEXT,
-    points INTEGER DEFAULT 0,
+    rating INTEGER DEFAULT 0,
     cleaning_day TEXT
 )
 ''')
@@ -42,12 +46,11 @@ CREATE TABLE vouchers (
 # Create the ratings table
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS ratings (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rated_by TEXT,
     student_id TEXT,
-    groupmate_id TEXT,
     rating INTEGER,
-    FOREIGN KEY (student_id) REFERENCES students(student_id),
-    FOREIGN KEY (groupmate_id) REFERENCES students(student_id)
+    FOREIGN KEY (student_id) REFERENCES students(student_id)
 )
 ''')
 
@@ -84,7 +87,7 @@ sample_students = [
 
 # Insert into the database with the cleaning day
 for student_id, name, cleaning_day in sample_students:
-    cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, points, cleaning_day) VALUES (?, ?, ?, ?, ?)",
+    cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, rating, cleaning_day) VALUES (?, ?, ?, ?, ?)",
                    (student_id, name, 'BSCPE 2B', 0, cleaning_day))
 
 conn.commit()
@@ -95,22 +98,22 @@ cursor.execute("INSERT OR IGNORE INTO teachers (teacher_id, name, section) VALUE
 conn.commit()
 
 # --- Database Functions ---
-def insert_student(student_id, name, section, cleaning_day, points):
+def insert_student(student_id, name, section, cleaning_day, rating):
     cursor.execute("INSERT OR IGNORE INTO students (student_id, name, section, cleaning_day) VALUES (?, ?, ?, ?, ?)",
-                   (student_id, name, section, cleaning_day, points))
+                   (student_id, name, section, cleaning_day, rating))
     conn.commit()
 
-def get_points(student_id):
-    cursor.execute("SELECT points FROM students WHERE student_id = ?", (student_id,))
+def get_rating(student_id):
+    cursor.execute("SELECT rating FROM students WHERE student_id = ?", (student_id,))
     result = cursor.fetchone()
     return result[0] if result else 0
 
-def update_points(student_id, points):
-    cursor.execute("UPDATE students SET points = ? WHERE student_id = ?", (points, student_id))
+def update_rating(student_id, rating):
+    cursor.execute("UPDATE students SET rating = ? WHERE student_id = ?", (rating, student_id))
     conn.commit()
 
 def get_student_info(student_id):
-    cursor.execute("SELECT name, section, points FROM students WHERE student_id = ?", (student_id,))
+    cursor.execute("SELECT name, section, rating FROM students WHERE student_id = ?", (student_id,))
     return cursor.fetchone()
 
 def assign_cleaning_day(student_id, day):
@@ -128,16 +131,16 @@ def section_exists(section):
     teacher_exists = cursor.fetchone()
     return student_exists or teacher_exists
 
-# --- Ratings Functions ---
-def insert_rating(student_id, groupmate_id, rating):
-    cursor.execute("INSERT INTO ratings (student_id, groupmate_id, rating) VALUES (?, ?, ?)",
-                   (student_id, groupmate_id, rating))
+def insert_rating(rated_by, student_id, rating):
+    cursor.execute("INSERT INTO ratings (rated_by, student_id, rating) VALUES (?, ?, ?)",
+                   (rated_by, student_id, rating))
     conn.commit()
 
 def get_ratings_for_student(student_id):
-    cursor.execute("SELECT groupmate_id, rating FROM ratings WHERE student_id = ?", (student_id,))
+    cursor.execute("SELECT rated_by, rating FROM ratings WHERE student_id = ?", (student_id,))
     return cursor.fetchall()
 
 def get_average_rating(student_id):
-    cursor.execute("SELECT AVG(rating) FROM ratings WHERE groupmate_id = ?", (student_id,))
+    cursor.execute("SELECT AVG(rating) FROM ratings WHERE student_id = ?", (student_id,))
     return cursor.fetchone()[0] or 0
+

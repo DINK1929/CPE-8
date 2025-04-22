@@ -70,7 +70,7 @@ ScreenManager:
     VoucherShopPage:
     RatingFormPage:
     VoucherApprovalPage:
-    StudentPointsPage:
+    StudentRatingsPage:
 
 <LoginPage>:
     name: 'login'
@@ -170,7 +170,7 @@ ScreenManager:
             font_style: 'H5'
 
         MDLabel:
-            id: student_points
+            id: student_ratings
             halign: 'center'
             font_style: 'H6'
 
@@ -215,8 +215,8 @@ ScreenManager:
             on_press: app.root.current = 'voucher_approval'
 
         MDRaisedButton:
-            text: 'Student Points'
-            on_press: app.root.current = 'student_points'
+            text: 'Student Ratings'
+            on_press: app.root.current = 'student_ratings'
 
 <CleanerListPage>:
     name: 'cleaner_list'
@@ -283,15 +283,13 @@ ScreenManager:
             text: 'Voucher Approval (Placeholder)'
             halign: 'center'
 
-<StudentPointsPage>:
-    name: 'student_points'
+<StudentRatingsPage>:  # <-- Updated here
+    name: 'student_ratings'  # <-- Updated here
     BoxLayout:
         orientation: 'vertical'
         padding: dp(20)
         spacing: dp(10)
 
-
-        # Back button (styling)
         MDIconButton:
             icon: "arrow-left"
             pos_hint: {"center_x": 0.05}
@@ -299,24 +297,21 @@ ScreenManager:
             theme_text_color: "Custom"
             text_color: (0, 0, 0, 1)
 
-        # Title for the page
         MDLabel:
-            text: 'All Students Points'
+            text: 'All Students Ratings'
             halign: 'center'
             font_style: 'H4'
             size_hint_y: None
             height: dp(50)
             theme_text_color: "Primary"
 
-        # List of students and their points
         ScrollView:
             MDList:
-                id: student_points_list  # This will hold all student data
+                id: student_ratings_list
                 spacing: dp(10)  # Add space between the cards
 
 
 '''
-
 
 # --- Screen Classes ---
 class LoginPage(Screen):
@@ -343,13 +338,11 @@ class LoginPage(Screen):
             self.dialog.text = message
         self.dialog.open()
 
-
 class ChoicePage(Screen):
     def signin(self, role):
         self.manager.get_screen('signin').ids.signin_label.text = f'Sign In as {role}'
         self.manager.get_screen('signin').role = role
         self.manager.current = 'signin'
-
 
 class SignInPage(Screen):
     role = StringProperty("")
@@ -365,9 +358,10 @@ class SignInPage(Screen):
         if self.role == "Student":
             student = get_student_info(id_number)
             if student:
-                name, section, points = student
+                name, section, rating = student
                 app.root.get_screen('student_home').ids.student_info.text = f"{name} | Section: {section}"
-                app.root.get_screen('student_home').ids.student_points.text = f"Points: {points}"
+                app.root.get_screen('student_home').ids.student_ratings.text = f"Ratings: {rating}"
+                app.current_student_id = id_number  # Store for later rating
                 app.root.current = 'student_home'
             else:
                 self.show_dialog("Student not found.")
@@ -391,12 +385,9 @@ class SignInPage(Screen):
             self.dialog.text = text
         self.dialog.open()
 
-
 class StudentHomePage(Screen): pass
 
-
 class TeacherHomePage(Screen): pass
-
 
 class CleanerListPage(Screen):
     def on_enter(self):
@@ -411,16 +402,13 @@ class CleanerListPage(Screen):
         app = MDApp.get_running_app()
         section = app.section
 
-        # Fetch students assigned to cleaning days from the database
         import sqlite3
         conn = sqlite3.connect("malin_ease.db")
         cursor = conn.cursor()
 
-        # Get students assigned to each cleaning day
         cursor.execute("SELECT name, cleaning_day FROM students WHERE lower(section) = ?", (section.lower(),))
         students = cursor.fetchall()
 
-        # Organize students into groups based on cleaning day
         cleaners_by_day = {day: [] for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']}
         for name, cleaning_day in students:
             cleaners_by_day[cleaning_day].append(name)
@@ -428,10 +416,7 @@ class CleanerListPage(Screen):
         conn.close()
 
         self.ids.cleaners_list.clear_widgets()
-        weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-
-        # Display the students by their assigned cleaning days
-        for day in weekdays:
+        for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']:
             day_card = MDCard(
                 orientation='vertical',
                 size_hint=(1, None),
@@ -453,13 +438,8 @@ class CleanerListPage(Screen):
             )
             day_card.add_widget(day_title)
 
-            # If there are students for this day, display their names
-            students_for_day = cleaners_by_day.get(day, [])
-            if students_for_day:
-                for name in students_for_day:
-                    day_card.add_widget(OneLineListItem(text=name))
-            else:
-                day_card.add_widget(OneLineListItem(text="No students assigned"))
+            for name in cleaners_by_day.get(day, ["No students assigned"]):
+                day_card.add_widget(OneLineListItem(text=name))
 
             self.ids.cleaners_list.add_widget(day_card)
 
@@ -470,9 +450,7 @@ class CleanerListPage(Screen):
         else:
             app.root.current = 'teacher_home'
 
-
 class VoucherShopPage(Screen): pass
-
 
 class RatingFormPage(Screen):
     def on_enter(self):
@@ -481,27 +459,24 @@ class RatingFormPage(Screen):
     def display_groupmates(self):
         self.ids.rating_form_container.clear_widgets()
         app = MDApp.get_running_app()
-        current_id = app.root.get_screen('signin').ids.id_input.text.strip()
+        current_id = app.current_student_id
 
         import sqlite3
         conn = sqlite3.connect("malin_ease.db")
         cursor = conn.cursor()
 
-        # Get current student's cleaning day and name
-        cursor.execute("SELECT cleaning_day, name FROM students WHERE student_id = ?", (current_id,))
+        cursor.execute("SELECT cleaning_day FROM students WHERE student_id = ?", (current_id,))
         result = cursor.fetchone()
 
         if result:
-            cleaning_day, student_name = result
+            cleaning_day = result[0]
 
-            # Get all groupmates (same day, same section, different ID)
             cursor.execute("""
                 SELECT student_id, name FROM students 
                 WHERE cleaning_day = ? AND student_id != ?
             """, (cleaning_day, current_id))
             groupmates = cursor.fetchall()
 
-            # Store sliders for later access
             self.slider_data = {}
 
             for sid, name in groupmates:
@@ -516,7 +491,6 @@ class RatingFormPage(Screen):
                 card.add_widget(slider)
                 self.ids.rating_form_container.add_widget(card)
 
-            # Add Submit Button
             submit_btn = MDRaisedButton(
                 text="Submit Ratings",
                 pos_hint={"center_x": 0.5},
@@ -527,102 +501,107 @@ class RatingFormPage(Screen):
         conn.close()
 
     def submit_ratings(self, instance):
+        from kivymd.toast import toast
+        import sqlite3
         app = MDApp.get_running_app()
-        current_id = app.root.get_screen('signin').ids.id_input.text.strip()
+        current_id = app.current_student_id
+
+        conn = sqlite3.connect("malin_ease.db")
+        cursor = conn.cursor()
+
+        for sid, slider in self.slider_data.items():
+            points = int(slider.value)
+            cursor.execute("INSERT INTO ratings (student_id, rated_by, rating) VALUES (?, ?, ?)", (sid, current_id, points))
+            cursor.execute("UPDATE students SET rating = rating + ? WHERE student_id = ?", (points, sid))
+
+        conn.commit()
+        conn.close()
+
+        toast("Ratings submitted successfully!")
+        app.root.current = 'student_home'
+
+class VoucherApprovalPage(Screen): pass
+class StudentRatingsPage(Screen):
+    def on_enter(self):
+        self.display_student_ratings()
+
+    def display_student_ratings(self):
+        from kivymd.uix.card import MDCard
+        from kivymd.uix.label import MDLabel
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivymd.app import MDApp
+        from kivy.metrics import dp
+
+        app = MDApp.get_running_app()
+        section = app.section
 
         import sqlite3
         conn = sqlite3.connect("malin_ease.db")
         cursor = conn.cursor()
 
-        for groupmate_id, slider in self.slider_data.items():
-            rating = int(slider.value)
-            cursor.execute("""
-                INSERT INTO ratings (student_id, groupmate_id, rating)
-                VALUES (?, ?, ?)
-            """, (current_id, groupmate_id, rating))
-
-        conn.commit()
+        # Modify the query to sort students by name directly in SQL
+        cursor.execute("SELECT name, rating FROM students WHERE lower(section) = ? ORDER BY name ASC", (section.lower(),))
+        students = cursor.fetchall()
         conn.close()
 
-        self.ids.rating_form_container.clear_widgets()
-        self.ids.rating_form_container.add_widget(
-            MDLabel(text="Ratings submitted successfully!", halign="center")
-        )
+        self.ids.student_ratings_list.clear_widgets()
 
-
-class VoucherApprovalPage(Screen): pass
-
-
-class StudentPointsPage(Screen):
-    def on_enter(self):
-        import sqlite3
-        # Query all students and their points
-        connection = sqlite3.connect('malin_ease.db')
-        cursor = connection.cursor()
-        cursor.execute("SELECT name, points FROM students ORDER BY points DESC")
-        students_data = cursor.fetchall()
-        connection.close()
-
-        # Clear the list before adding
-        student_points_list = self.ids.student_points_list
-        student_points_list.clear_widgets()
-
-        # Add each student in a stylized card
-        for name, points in students_data:
-            card = MDCard(
-                orientation='horizontal',
-                size_hint=(0.9, None),
-                height=dp(80),
-                padding=dp(16),
-                spacing=dp(16),
-                md_bg_color=get_color_from_hex("#1E1E2F"),  # Nice dark card
-                ripple_behavior=True,
-                radius=[12, 12, 12, 12],
-                elevation=6,
-                pos_hint={"center_x": 0.5},
+        if not students:
+            no_data_label = MDLabel(
+                text="No ratings available.",
+                halign='center',
+                theme_text_color='Secondary'
             )
+            self.ids.student_ratings_list.add_widget(no_data_label)
+            return
+
+        for name, rating in students:
+            student_card = MDCard(
+                orientation='vertical',
+                size_hint=(1, None),
+                padding=dp(10),
+                spacing=dp(5),
+                elevation=4,
+                radius=[15, 15, 15, 15],
+                md_bg_color=(1, 1, 1, 1)
+            )
+            student_card.bind(minimum_height=student_card.setter('height'))
 
             name_label = MDLabel(
-                text=name,
-                font_style="H6",
-                theme_text_color="Custom",
-                text_color=get_color_from_hex("#FFFFFF"),
-                halign="left",
-                valign="middle",
-                size_hint_x=0.7
+                text=f"{name}",
+                theme_text_color='Primary',
+                font_style='H6',
+                size_hint_y=None,
+                height=dp(30)
+            )
+            rating_label = MDLabel(
+                text=f"Total Points: {rating}",
+                theme_text_color='Secondary',
+                size_hint_y=None,
+                height=dp(24)
             )
 
-            points_label = MDLabel(
-                text=f"{points} pts",
-                font_style="Subtitle1",
-                theme_text_color="Custom",
-                text_color=get_color_from_hex("#00FF99"),
-                halign="right",
-                valign="middle",
-                size_hint_x=0.3
-            )
+            student_card.add_widget(name_label)
+            student_card.add_widget(rating_label)
 
-            card.add_widget(name_label)
-            card.add_widget(points_label)
-            student_points_list.add_widget(card)
+            self.ids.student_ratings_list.add_widget(student_card)
 
-
-class MalinEASEApp(MDApp):
-    section = ""
-    dialog = None
+class MalinEaseApp(MDApp):
+    section = StringProperty("")
+    current_student_id = StringProperty("")
 
     def build(self):
-        return Builder.load_string(KV)
+        self.root = Builder.load_string(KV)
+        return self.root
 
     def confirm_logout(self):
-        if not self.dialog:
-            self.dialog = MDDialog(
-                text="Are you sure you want to log out?",
-                buttons=[
-                    MDFlatButton(text="No", on_release=lambda x: self.dialog.dismiss()),
-                    MDFlatButton(text="Yes", on_release=self.logout)
-                ]
-            )
+        self.dialog = MDDialog(
+            text="Are you sure you want to logout?",
+            buttons=[
+                MDFlatButton(text="Cancel", on_release=lambda x: self.dialog.dismiss()),
+                MDRaisedButton(text="Logout", on_release=self.logout)
+            ]
+        )
         self.dialog.open()
 
     def logout(self, *args):
@@ -632,20 +611,30 @@ class MalinEASEApp(MDApp):
     def change_screen(self, screen_name):
         self.root.current = screen_name
 
-    def get_cleaner_groups(self, section):
-        import sqlite3
-        conn = sqlite3.connect("malin_ease.db")
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM students WHERE lower(section) = ?", (section.lower(),))
-        names = [row[0] for row in cursor.fetchall()]
-        conn.close()
+class MalinEASEApp(MDApp):
+    section = StringProperty("")
+    current_student_id = StringProperty("")
 
-        names.sort()
-        groups = [[] for _ in range(5)]
-        for i, name in enumerate(names):
-            groups[i % 5].append(name)
-        return groups
+    def build(self):
+        self.root = Builder.load_string(KV)
+        return self.root
 
+    def confirm_logout(self):
+        self.dialog = MDDialog(
+            text="Are you sure you want to logout?",
+            buttons=[
+                MDFlatButton(text="Cancel", on_release=lambda x: self.dialog.dismiss()),
+                MDRaisedButton(text="Logout", on_release=self.logout)
+            ]
+        )
+        self.dialog.open()
+
+    def logout(self, *args):
+        self.dialog.dismiss()
+        self.root.current = 'login'
+
+    def change_screen(self, screen_name):
+        self.root.current = screen_name
 
 if __name__ == '__main__':
     MalinEASEApp().run()
