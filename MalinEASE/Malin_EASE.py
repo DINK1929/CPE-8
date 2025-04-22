@@ -2,18 +2,18 @@ from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivy.uix.screenmanager import Screen, ScreenManager
 from kivy.core.window import Window
-from kivy.metrics import dp
 from kivy.properties import StringProperty
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.button import MDFlatButton, MDRaisedButton
-from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.label import MDLabel
 from kivymd.uix.slider import MDSlider
 from kivymd.uix.card import MDCard
-
+from kivy.metrics import dp
+from kivy.utils import get_color_from_hex
 from database import get_student_info, get_teacher_info
 
 Window.size = (360, 640)
+
 
 # --- Section Check Function ---
 def section_exists(input_section):
@@ -31,8 +31,10 @@ def section_exists(input_section):
     conn.close()
     return input_section in student_sections.union(teacher_sections)
 
+
 def change_screen(self, screen_name):
     self.root.current = screen_name
+
 
 def generate_cleaners_list(self):
     import sqlite3
@@ -43,10 +45,10 @@ def generate_cleaners_list(self):
     cursor.execute("SELECT id, name FROM students WHERE lower(section) = ?", (self.section.lower(),))
     students = cursor.fetchall()
 
-        # Sort alphabetically by name
+    # Sort alphabetically by name
     students.sort(key=lambda x: x[1])
 
-        # Assign to days (Monday to Friday)
+    # Assign to days (Monday to Friday)
     days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
     for i, (student_id, _) in enumerate(students):
         assigned_day = days[i % 5]
@@ -54,6 +56,7 @@ def generate_cleaners_list(self):
 
     conn.commit()
     conn.close()
+
 
 # --- Kivy UI ---
 KV = '''
@@ -284,15 +287,36 @@ ScreenManager:
     name: 'student_points'
     BoxLayout:
         orientation: 'vertical'
+        padding: dp(20)
+        spacing: dp(10)
+
+
+        # Back button (styling)
         MDIconButton:
             icon: "arrow-left"
             pos_hint: {"center_x": 0.05}
             on_release: app.root.current = 'teacher_home'
+            theme_text_color: "Custom"
+            text_color: (0, 0, 0, 1)
 
+        # Title for the page
         MDLabel:
-            text: 'Student Points (Placeholder)'
+            text: 'All Students Points'
             halign: 'center'
+            font_style: 'H4'
+            size_hint_y: None
+            height: dp(50)
+            theme_text_color: "Primary"
+
+        # List of students and their points
+        ScrollView:
+            MDList:
+                id: student_points_list  # This will hold all student data
+                spacing: dp(10)  # Add space between the cards
+
+
 '''
+
 
 # --- Screen Classes ---
 class LoginPage(Screen):
@@ -319,11 +343,13 @@ class LoginPage(Screen):
             self.dialog.text = message
         self.dialog.open()
 
+
 class ChoicePage(Screen):
     def signin(self, role):
         self.manager.get_screen('signin').ids.signin_label.text = f'Sign In as {role}'
         self.manager.get_screen('signin').role = role
         self.manager.current = 'signin'
+
 
 class SignInPage(Screen):
     role = StringProperty("")
@@ -365,8 +391,12 @@ class SignInPage(Screen):
             self.dialog.text = text
         self.dialog.open()
 
+
 class StudentHomePage(Screen): pass
+
+
 class TeacherHomePage(Screen): pass
+
 
 class CleanerListPage(Screen):
     def on_enter(self):
@@ -440,7 +470,10 @@ class CleanerListPage(Screen):
         else:
             app.root.current = 'teacher_home'
 
+
 class VoucherShopPage(Screen): pass
+
+
 class RatingFormPage(Screen):
     def on_enter(self):
         self.display_groupmates()
@@ -515,8 +548,64 @@ class RatingFormPage(Screen):
         self.ids.rating_form_container.add_widget(
             MDLabel(text="Ratings submitted successfully!", halign="center")
         )
+
+
 class VoucherApprovalPage(Screen): pass
-class StudentPointsPage(Screen): pass
+
+
+class StudentPointsPage(Screen):
+    def on_enter(self):
+        import sqlite3
+        # Query all students and their points
+        connection = sqlite3.connect('malin_ease.db')
+        cursor = connection.cursor()
+        cursor.execute("SELECT name, points FROM students ORDER BY points DESC")
+        students_data = cursor.fetchall()
+        connection.close()
+
+        # Clear the list before adding
+        student_points_list = self.ids.student_points_list
+        student_points_list.clear_widgets()
+
+        # Add each student in a stylized card
+        for name, points in students_data:
+            card = MDCard(
+                orientation='horizontal',
+                size_hint=(0.9, None),
+                height=dp(80),
+                padding=dp(16),
+                spacing=dp(16),
+                md_bg_color=get_color_from_hex("#1E1E2F"),  # Nice dark card
+                ripple_behavior=True,
+                radius=[12, 12, 12, 12],
+                elevation=6,
+                pos_hint={"center_x": 0.5},
+            )
+
+            name_label = MDLabel(
+                text=name,
+                font_style="H6",
+                theme_text_color="Custom",
+                text_color=get_color_from_hex("#FFFFFF"),
+                halign="left",
+                valign="middle",
+                size_hint_x=0.7
+            )
+
+            points_label = MDLabel(
+                text=f"{points} pts",
+                font_style="Subtitle1",
+                theme_text_color="Custom",
+                text_color=get_color_from_hex("#00FF99"),
+                halign="right",
+                valign="middle",
+                size_hint_x=0.3
+            )
+
+            card.add_widget(name_label)
+            card.add_widget(points_label)
+            student_points_list.add_widget(card)
+
 
 class MalinEASEApp(MDApp):
     section = ""
@@ -540,6 +629,9 @@ class MalinEASEApp(MDApp):
         self.dialog.dismiss()
         self.root.current = 'login'
 
+    def change_screen(self, screen_name):
+        self.root.current = screen_name
+
     def get_cleaner_groups(self, section):
         import sqlite3
         conn = sqlite3.connect("malin_ease.db")
@@ -553,6 +645,7 @@ class MalinEASEApp(MDApp):
         for i, name in enumerate(names):
             groups[i % 5].append(name)
         return groups
+
 
 if __name__ == '__main__':
     MalinEASEApp().run()
