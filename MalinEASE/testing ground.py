@@ -50,14 +50,14 @@ def api_request(action, params=None, method='GET', callback=None, error_callback
     if method.upper() == 'GET':
         params = params or {}
         params['action'] = action
-        url += '?' + urllib.parse.urlencode(params)  # ✅ URL-encode parameters
+        url += '?' + urllib.parse.urlencode(params)
         req_body = None
     else:
         data = params or {}
         data['action'] = action
         req_body = json.dumps(data)
 
-    print("Request URL:", url)  # ✅ Debug: check full URL
+    print("Request URL:", url)
 
     UrlRequest(
         url,
@@ -197,11 +197,12 @@ ScreenManager:
             id: section_input
             hint_text: 'Enter your section (ex: BSCPE 2b)'
             mode: 'rectangle' 
-
+            
         MDRaisedButton:
             text: 'Submit'
-            halign: 'center'
+            pos_hint: {"center_x": .5}
             on_press: root.submit()
+
 
 <ChoicePage>:
     name: 'choice'
@@ -224,13 +225,26 @@ ScreenManager:
             text: 'Are you a teacher or a student?'
             halign: 'center'
 
-        MDRaisedButton:
-            text: 'Teacher'
-            on_press: root.signin('Teacher')
+        # Horizontal container for the buttons
+        BoxLayout:
+            orientation: 'horizontal'
+            spacing: dp(20)
+            size_hint_y: None
+            height: self.minimum_height
+            padding: dp(20)  # Optional padding around buttons
+            pos_hint: {'center_x': 0.45}
 
-        MDRaisedButton:
-            text: 'Student'
-            on_press: root.signin('Student')
+            MDRaisedButton:
+                text: 'Teacher'
+                on_press: root.signin('Teacher')
+                size_hint_x: 0.5 if root.width > 500 else None
+                width: dp(150) if root.width <= 500 else None
+
+            MDRaisedButton:
+                text: 'Student'
+                on_press: root.signin('Student')
+                size_hint_x: 0.5 if root.width > 500 else None
+                width: dp(150) if root.width <= 500 else None
 
 <SignInPage>:
     name: 'signin'
@@ -256,6 +270,7 @@ ScreenManager:
 
         MDRaisedButton:
             text: 'Sign In'
+            pos_hint: {"center_x": .5}
             on_press: root.signin()
 
 <StudentHomePage>:
@@ -265,6 +280,7 @@ ScreenManager:
         padding: dp(20)
         spacing: dp(10)
 
+        # Top bar with logout button
         BoxLayout:
             size_hint_y: None
             height: dp(40)
@@ -273,6 +289,7 @@ ScreenManager:
                 on_release: app.confirm_logout()
                 pos_hint: {"center_y": 0.5}
 
+        # Student information labels
         MDLabel:
             id: student_info
             halign: 'center'
@@ -283,26 +300,45 @@ ScreenManager:
             halign: 'center'
             font_style: 'H6'
 
+        # Voucher status scroll view
         ScrollView:
             MDBoxLayout:
                 id: voucher_status_container
                 orientation: 'vertical'
-                spacing: dp(4)  # Reduced from dp(10)
+                spacing: dp(4)
                 adaptive_height: True
                 size_hint_y: None
                 height: self.minimum_height
                 padding: dp(8)
-        MDRaisedButton:
-            text: 'Cleaner List'
-            on_press: app.root.current = 'cleaner_list'
 
-        MDRaisedButton:
-            text: 'Voucher Shop'
-            on_press: app.root.current = 'voucher_shop'
+        # Button group - Cleaner List and Voucher Shop side by side
+        BoxLayout:
+            orientation: 'horizontal'
+            spacing: dp(10)
+            size_hint_y: None
+            height: dp(48)
 
+            MDRaisedButton:
+                text: 'Cleaner List'
+                on_press: app.root.current = 'cleaner_list'
+                size_hint_x: 0.5
+
+            MDRaisedButton:
+                text: 'Voucher Shop'
+                on_press: app.root.current = 'voucher_shop'
+                size_hint_x: 0.5
+
+        # Rate Cleaners button centered below the other two
         MDRaisedButton:
             text: 'Rate Cleaners'
             on_press: app.root.current = 'rating_form'
+            size_hint: (None, None)
+            size: (dp(200), dp(48))
+            pos_hint: {'center_x': 0.5}
+
+        # Optional spacer if you want to push everything up slightly
+        Widget:
+            size_hint_y: 0.1
 
 <TeacherHomePage>:
     name: 'teacher_home'
@@ -311,6 +347,7 @@ ScreenManager:
         padding: dp(20)
         spacing: dp(10)
 
+        # Top bar with logout button
         BoxLayout:
             size_hint_y: None
             height: dp(40)
@@ -319,22 +356,38 @@ ScreenManager:
                 on_release: app.confirm_logout()
                 pos_hint: {"center_y": 0.5}
 
+        # Teacher information label
         MDLabel:
             id: teacher_info
             halign: 'center'
             font_style: 'H5'
 
-        MDRaisedButton:
-            text: 'Cleaner List'
-            on_press: app.root.current = 'teacher_cleaner_list'
+        # Horizontal layout for Cleaner List and Voucher Approval
+        BoxLayout:
+            orientation: 'horizontal'
+            spacing: dp(10)
+            size_hint_y: None
+            height: dp(48)
 
-        MDRaisedButton:
-            text: 'Voucher Approval'
-            on_press: app.root.current = 'voucher_approval'
+            MDRaisedButton:
+                text: 'Cleaner List'
+                on_press: app.root.current = 'teacher_cleaner_list'
+                size_hint_x: 0.5
 
+            MDRaisedButton:
+                text: 'Voucher Approval'
+                on_press: app.root.current = 'voucher_approval'
+                size_hint_x: 0.5
+                
+        # Student Ratings button centered below
         MDRaisedButton:
             text: 'Student Ratings'
             on_press: app.root.current = 'student_ratings'
+            size_hint: (None, None)
+            size: (dp(200), dp(48))
+            pos_hint: {'center_x': 0.5}
+        Widget:
+            size_hint_y: 0.1
 
 <StudentCleanerListPage>:
     name: 'cleaner_list'
