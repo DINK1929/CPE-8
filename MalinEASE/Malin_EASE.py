@@ -10,49 +10,152 @@ from kivymd.uix.slider import MDSlider
 from kivymd.uix.card import MDCard
 from kivy.metrics import dp
 from kivy.utils import get_color_from_hex
-from database import get_student_info, get_teacher_info, section_exists, create_voucher, get_pending_vouchers, approve_voucher, reject_voucher, can_purchase_voucher, get_student_vouchers
+from kivy.network.urlrequest import UrlRequest
+from kivymd.uix.boxlayout import MDBoxLayout
+import json
+import urllib.parse
+from kivymd.toast import toast
+import requests
+from urllib.parse import urljoin
+from kivy.clock import Clock
+
+from MalinEASE.database import student_id
 
 Window.size = (360, 640)
 
-
-# --- Section Check Function ---
-def section_exists(input_section):
-    input_section = input_section.strip().lower()
-    import sqlite3
-    conn = sqlite3.connect("malin_ease.db")
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT DISTINCT section FROM students")
-    student_sections = {row[0].lower() for row in cursor.fetchall()}
-
-    cursor.execute("SELECT DISTINCT section FROM teachers")
-    teacher_sections = {row[0].lower() for row in cursor.fetchall()}
-
-    conn.close()
-    return input_section in student_sections.union(teacher_sections)
+# --- API Configuration ---
+API_BASE_URL = "http://dirk.x10.mx/Malin_EASE/api.php"  # Replace with your actual domain
 
 
-def change_screen(self, screen_name):
-    self.root.current = screen_name
+def api_request(action, params=None, method='GET', callback=None, error_callback=None):
+    """Make an API request to the PHP backend"""
+
+    def request_callback(req, result):
+        try:
+            if isinstance(result, str):
+                result = json.loads(result)
+            if callback:
+                callback(req, result)
+        except Exception as e:
+            if error_callback:
+                error_callback(req, str(e))
+
+    def request_error(req, error):
+        if error_callback:
+            error_callback(req, error)
+
+    url = API_BASE_URL
+    if method.upper() == 'GET':
+        params = params or {}
+        params['action'] = action
+        url += '?' + urllib.parse.urlencode(params)
+        req_body = None
+    else:
+        data = params or {}
+        data['action'] = action
+        req_body = json.dumps(data)
+
+    print("Request URL:", url)
+
+    UrlRequest(
+        url,
+        req_body=req_body,
+        on_success=request_callback,
+        on_error=request_error,
+        on_failure=request_error,
+        req_headers={'Content-Type': 'application/json'} if method.upper() != 'GET' else {}
+    )
 
 
-def generate_cleaners_list(self):
-    import sqlite3
-    conn = sqlite3.connect("malin_ease.db")
-    cursor = conn.cursor()
+def section_exists(section, callback, error_callback=None):
+    """Check if section exists"""
+    api_request('section_exists', {'section': section},
+                callback=callback, error_callback=error_callback)
 
-    cursor.execute("SELECT id, name FROM students WHERE lower(section) = ?", (self.section.lower(),))
-    students = cursor.fetchall()
 
-    students.sort(key=lambda x: x[1])
+def get_student_info(student_id, callback, error_callback=None):
+    """Get student info"""
+    api_request('get_student_info', {'student_id': student_id},
+                callback=callback, error_callback=error_callback)
 
-    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-    for i, (student_id, _) in enumerate(students):
-        assigned_day = days[i % 5]
-        cursor.execute("UPDATE students SET cleaning_day = ? WHERE id = ?", (assigned_day, student_id))
 
-    conn.commit()
-    conn.close()
+def get_teacher_info(teacher_id, callback, error_callback=None):
+    """Get teacher info"""
+    api_request('get_teacher_info', {'teacher_id': teacher_id},
+                callback=callback, error_callback=error_callback)
+
+
+# ---------------------------------------------------------------------------------------
+def create_voucher(student_id, voucher_type, callback, error_callback=None):
+    """Create a new voucher"""
+    api_request('create_voucher',
+                {'student_id': student_id, 'voucher_type': voucher_type},
+                method='POST',
+                callback=callback, error_callback=error_callback)
+
+
+# ---------------------------------------------------------------------------------------
+
+def get_pending_vouchers(callback, error_callback=None):
+    """Get pending vouchers"""
+    api_request('get_pending_vouchers',
+                callback=callback, error_callback=error_callback)
+
+
+def approve_voucher(voucher_id, callback, error_callback=None):
+    """Approve a voucher"""
+    api_request('approve_voucher', {'voucher_id': voucher_id},
+                method='POST',
+                callback=callback, error_callback=error_callback)
+
+
+def reject_voucher(voucher_id, callback, error_callback=None):
+    """Reject a voucher"""
+    api_request('reject_voucher', {'voucher_id': voucher_id},
+                method='POST',
+                callback=callback, error_callback=error_callback)
+
+
+# ---------------------------------------------------------------------------------------
+def can_purchase_voucher(student_id, voucher_type, callback, error_callback=None):
+    """Check if student can purchase voucher"""
+    api_request('can_purchase_voucher',
+                {'student_id': student_id, 'voucher_type': voucher_type},
+                callback=callback, error_callback=error_callback)
+
+
+def get_student_vouchers(student_id, callback, error_callback=None):
+    """Get student's vouchers"""
+    api_request('get_student_vouchers', {'student_id': student_id},
+                callback=callback, error_callback=error_callback)
+
+
+# ---------------------------------------------------------------------------------------
+
+
+def get_cleaners_list(section, callback, error_callback=None):
+    """Get cleaners list for a section"""
+    api_request('get_cleaners_list', {'section': section},
+                callback=callback, error_callback=error_callback)
+
+
+def submit_ratings(rated_by, ratings, callback, error_callback=None):
+    """Submit ratings"""
+    api_request('submit_ratings',
+                {'rated_by': rated_by, 'ratings': ratings},
+                method='POST',
+                callback=callback, error_callback=error_callback)
+
+
+def get_student_ratings(section, callback, error_callback=None):
+    """Get all student ratings for a section"""
+    api_request('get_student_ratings', {'section': section},
+                callback=callback, error_callback=error_callback)
+
+
+def get_groupmates(student_id, success_cb, error_cb):
+    url = f"{API_BASE_URL}?action=get_groupmates&student_id={student_id}"
+    UrlRequest(url, on_success=success_cb, on_failure=error_cb, on_error=error_cb)
 
 
 # --- Kivy UI ---
@@ -63,7 +166,8 @@ ScreenManager:
     SignInPage:
     StudentHomePage:
     TeacherHomePage:
-    CleanerListPage:
+    StudentCleanerListPage:
+    TeacherCleanerListPage:
     VoucherShopPage:
     RatingFormPage:
     VoucherApprovalPage:
@@ -88,8 +192,9 @@ ScreenManager:
 
         MDRaisedButton:
             text: 'Submit'
-            halign: 'center'
+            pos_hint: {"center_x": .5}
             on_press: root.submit()
+
 
 <ChoicePage>:
     name: 'choice'
@@ -112,13 +217,26 @@ ScreenManager:
             text: 'Are you a teacher or a student?'
             halign: 'center'
 
-        MDRaisedButton:
-            text: 'Teacher'
-            on_press: root.signin('Teacher')
+        # Horizontal container for the buttons
+        BoxLayout:
+            orientation: 'horizontal'
+            spacing: dp(20)
+            size_hint_y: None
+            height: self.minimum_height
+            padding: dp(20)  # Optional padding around buttons
+            pos_hint: {'center_x': 0.45}
 
-        MDRaisedButton:
-            text: 'Student'
-            on_press: root.signin('Student')
+            MDRaisedButton:
+                text: 'Teacher'
+                on_press: root.signin('Teacher')
+                size_hint_x: 0.5 if root.width > 500 else None
+                width: dp(150) if root.width <= 500 else None
+
+            MDRaisedButton:
+                text: 'Student'
+                on_press: root.signin('Student')
+                size_hint_x: 0.5 if root.width > 500 else None
+                width: dp(150) if root.width <= 500 else None
 
 <SignInPage>:
     name: 'signin'
@@ -144,6 +262,7 @@ ScreenManager:
 
         MDRaisedButton:
             text: 'Sign In'
+            pos_hint: {"center_x": .5}
             on_press: root.signin()
 
 <StudentHomePage>:
@@ -153,6 +272,7 @@ ScreenManager:
         padding: dp(20)
         spacing: dp(10)
 
+        # Top bar with logout button
         BoxLayout:
             size_hint_y: None
             height: dp(40)
@@ -161,6 +281,7 @@ ScreenManager:
                 on_release: app.confirm_logout()
                 pos_hint: {"center_y": 0.5}
 
+        # Student information labels
         MDLabel:
             id: student_info
             halign: 'center'
@@ -171,26 +292,45 @@ ScreenManager:
             halign: 'center'
             font_style: 'H6'
 
+        # Voucher status scroll view
         ScrollView:
             MDBoxLayout:
                 id: voucher_status_container
                 orientation: 'vertical'
-                spacing: dp(10)
+                spacing: dp(4)
                 adaptive_height: True
                 size_hint_y: None
                 height: self.minimum_height
+                padding: dp(8)
 
-        MDRaisedButton:
-            text: 'Cleaner List'
-            on_press: app.root.current = 'cleaner_list'
+        # Button group - Cleaner List and Voucher Shop side by side
+        BoxLayout:
+            orientation: 'horizontal'
+            spacing: dp(10)
+            size_hint_y: None
+            height: dp(48)
 
-        MDRaisedButton:
-            text: 'Voucher Shop'
-            on_press: app.root.current = 'voucher_shop'
+            MDRaisedButton:
+                text: 'Cleaner List'
+                on_press: app.root.current = 'cleaner_list'
+                size_hint_x: 0.5
 
+            MDRaisedButton:
+                text: 'Voucher Shop'
+                on_press: app.root.current = 'voucher_shop'
+                size_hint_x: 0.5
+
+        # Rate Cleaners button centered below the other two
         MDRaisedButton:
             text: 'Rate Cleaners'
             on_press: app.root.current = 'rating_form'
+            size_hint: (None, None)
+            size: (dp(200), dp(48))
+            pos_hint: {'center_x': 0.5}
+
+        # Optional spacer if you want to push everything up slightly
+        Widget:
+            size_hint_y: 0.1
 
 <TeacherHomePage>:
     name: 'teacher_home'
@@ -199,6 +339,7 @@ ScreenManager:
         padding: dp(20)
         spacing: dp(10)
 
+        # Top bar with logout button
         BoxLayout:
             size_hint_y: None
             height: dp(40)
@@ -207,24 +348,40 @@ ScreenManager:
                 on_release: app.confirm_logout()
                 pos_hint: {"center_y": 0.5}
 
+        # Teacher information label
         MDLabel:
             id: teacher_info
             halign: 'center'
             font_style: 'H5'
 
-        MDRaisedButton:
-            text: 'Cleaner List'
-            on_press: app.root.current = 'cleaner_list'
+        # Horizontal layout for Cleaner List and Voucher Approval
+        BoxLayout:
+            orientation: 'horizontal'
+            spacing: dp(10)
+            size_hint_y: None
+            height: dp(48)
 
-        MDRaisedButton:
-            text: 'Voucher Approval'
-            on_press: app.root.current = 'voucher_approval'
+            MDRaisedButton:
+                text: 'Cleaner List'
+                on_press: app.root.current = 'teacher_cleaner_list'
+                size_hint_x: 0.5
 
+            MDRaisedButton:
+                text: 'Voucher Approval'
+                on_press: app.root.current = 'voucher_approval'
+                size_hint_x: 0.5
+
+        # Student Ratings button centered below
         MDRaisedButton:
             text: 'Student Ratings'
             on_press: app.root.current = 'student_ratings'
+            size_hint: (None, None)
+            size: (dp(200), dp(48))
+            pos_hint: {'center_x': 0.5}
+        Widget:
+            size_hint_y: 0.1
 
-<CleanerListPage>:
+<StudentCleanerListPage>:
     name: 'cleaner_list'
     BoxLayout:
         orientation: 'vertical'
@@ -233,7 +390,26 @@ ScreenManager:
         MDTopAppBar:
             title: "Cleaner List"
             elevation: 4
-            left_action_items: [["arrow-left", lambda x: root.go_back()]]
+            left_action_items: [["arrow-left", lambda x: app.change_screen('student_home')]]
+
+        ScrollView:
+            MDBoxLayout:
+                id: cleaners_list
+                orientation: 'vertical'
+                padding: dp(10)
+                spacing: dp(10)
+                adaptive_height: True
+
+<TeacherCleanerListPage>:
+    name: 'teacher_cleaner_list'
+    BoxLayout:
+        orientation: 'vertical'
+        spacing: dp(10)
+
+        MDTopAppBar:
+            title: "Cleaner List"
+            elevation: 4
+            left_action_items: [["arrow-left", lambda x: app.change_screen('teacher_home')]]
 
         ScrollView:
             MDBoxLayout:
@@ -327,57 +503,65 @@ ScreenManager:
                 id: student_ratings_list
                 spacing: dp(10)  
 
+<VoucherStatusCard>:
+    orientation: 'vertical'
+    size_hint: (1, None)
+    height: dp(100)
+    padding: dp(10)
+    spacing: dp(5)
+    elevation: 2
+    radius: [15]
 
+    MDLabel:
+        id: voucher_type_label
+        bold: True
+        halign: 'center'
+        theme_text_color: 'Custom'
+        text_color: (1, 1, 1, 1)
+
+    MDLabel:
+        id: status_label
+        halign: 'center'
+        theme_text_color: 'Custom'
+        text_color: (1, 1, 1, 1)
 '''
+
 
 class VoucherStatusCard(MDCard):
     def __init__(self, voucher_id, voucher_type, status, **kwargs):
-        super().__init__(**kwargs)
-        self.orientation = 'vertical'
-        self.size_hint = (1, None)
-        self.height = dp(100)
-        self.padding = dp(10)
-        self.spacing = dp(5)
-        self.elevation = 2
-        self.radius = [15]
+        super().__init__(
+            orientation='vertical',
+            size_hint=(1, None),
+            height=dp(100),  # Smaller height
+            padding=dp(8),  # Less padding
+            **kwargs
+        )
+        self.ids.voucher_type_label.text = f"{voucher_type.replace('_', ' ').title()} Voucher"
+        self.ids.status_label.text = f"Status: {status.upper()}"
+        self.md_bg_color = {
+            'approved': get_color_from_hex('#4CAF50'),
+            'rejected': get_color_from_hex('#F44336'),
+        }.get(status, get_color_from_hex('#FFC107'))
 
-        # Set color based on status
-        if status == 'approved':
-            self.md_bg_color = get_color_from_hex('#4CAF50')  # Green
-        elif status == 'rejected':
-            self.md_bg_color = get_color_from_hex('#F44336')  # Red
-        else:
-            self.md_bg_color = get_color_from_hex('#FFC107')  # Yellow (pending)
-
-        # Add first label
-        self.add_widget(MDLabel(
-            text=f"{voucher_type.replace('_', ' ').title()} Voucher",
-            bold=True,
-            halign='center',
-            theme_text_color='Custom',
-            text_color=(1, 1, 1, 1)
-        ))
-
-        # Add second label
-        self.add_widget(MDLabel(
-            text=f"Status: {status.upper()}",
-            halign='center',
-            theme_text_color='Custom',
-            text_color=(1, 1, 1, 1)
-        ))
 
 # --- Screen Classes ---
 class LoginPage(Screen):
     def submit(self):
         section = self.ids.section_input.text.strip()
         if section:
-            if section_exists(section):
-                app = MDApp.get_running_app()
-                app.section = section
-                self.manager.get_screen('choice').ids.choice_label.text = f'You are in {section}'
-                self.manager.current = 'choice'
-            else:
-                self.show_error("Section not found in the database.")
+            def callback(request, result):
+                if result.get('status') == 'success' and result.get('exists'):
+                    app = MDApp.get_running_app()
+                    app.section = section
+                    self.manager.get_screen('choice').ids.choice_label.text = f'You are in {section}'
+                    self.manager.current = 'choice'
+                else:
+                    self.show_error("Section not found in the database.")
+
+            def error_callback(request, error):
+                self.show_error("Connection error. Please try again.")
+
+            section_exists(section, callback, error_callback)
         else:
             self.show_error("Please enter your section.")
 
@@ -391,11 +575,13 @@ class LoginPage(Screen):
             self.dialog.text = message
         self.dialog.open()
 
+
 class ChoicePage(Screen):
     def signin(self, role):
         self.manager.get_screen('signin').ids.signin_label.text = f'Sign In as {role}'
         self.manager.get_screen('signin').role = role
         self.manager.current = 'signin'
+
 
 class SignInPage(Screen):
     role = StringProperty("")
@@ -409,24 +595,41 @@ class SignInPage(Screen):
         app = MDApp.get_running_app()
 
         if self.role == "Student":
-            student = get_student_info(id_number)
-            if student:
-                name, section, rating = student
-                app.root.get_screen('student_home').ids.student_info.text = f"{name} | Section: {section}"
-                app.root.get_screen('student_home').ids.student_ratings.text = f"Ratings: {rating}"
-                app.current_student_id = id_number
-                app.root.current = 'student_home'
-            else:
-                self.show_dialog("Student not found.")
+            def callback(request, result):
+                if result.get('status') == 'success':
+                    data = result.get('data', {})
+                    name = data.get('name', '')
+                    section = data.get('section', '')
+                    rating = data.get('rating', 0)
+
+                    app.root.get_screen('student_home').ids.student_info.text = f"{name} | Section: {section}"
+                    app.root.get_screen('student_home').ids.student_ratings.text = f"Ratings: {rating}"
+                    app.current_student_id = id_number
+                    app.root.current = 'student_home'
+                else:
+                    self.show_dialog("Student not found.")
+
+            def error_callback(request, error):
+                self.show_dialog("Connection error. Please try again.")
+
+            get_student_info(id_number, callback, error_callback)
 
         elif self.role == "Teacher":
-            teacher = get_teacher_info(id_number)
-            if teacher:
-                name, section = teacher
-                app.root.get_screen('teacher_home').ids.teacher_info.text = f"{name} | Section: {section}"
-                app.root.current = 'teacher_home'
-            else:
-                self.show_dialog("Teacher not found.")
+            def callback(request, result):
+                if result.get('status') == 'success':
+                    data = result.get('data', {})
+                    name = data.get('name', '')
+                    section = data.get('section', '')
+
+                    app.root.get_screen('teacher_home').ids.teacher_info.text = f"{name} | Section: {section}"
+                    app.root.current = 'teacher_home'
+                else:
+                    self.show_dialog("Teacher not found.")
+
+            def error_callback(request, error):
+                self.show_dialog("Connection error. Please try again.")
+
+            get_teacher_info(id_number, callback, error_callback)
 
     def show_dialog(self, text):
         if not hasattr(self, 'dialog') or not self.dialog:
@@ -446,119 +649,219 @@ class StudentHomePage(Screen):
 
     def update_student_info(self):
         app = MDApp.get_running_app()
-        student = get_student_info(app.current_student_id)
-        if student:
-            name, section, rating = student
-            self.ids.student_info.text = f"{name} | Section: {section}"
-            self.ids.student_ratings.text = f"Ratings: {rating}"
+
+        def callback(request, result):
+            if result.get('status') == 'success':
+                data = result.get('data', {})
+                name = data.get('name', '')
+                section = data.get('section', '')
+                rating = data.get('rating', 0)
+
+                self.ids.student_info.text = f"{name} | Section: {section}"
+                self.ids.student_ratings.text = f"Ratings: {rating}"
+
+        def error_callback(request, error):
+            pass  # Silently fail, we'll try again next time
+
+        get_student_info(app.current_student_id, callback, error_callback)
 
     def display_voucher_statuses(self):
         app = MDApp.get_running_app()
-        vouchers = get_student_vouchers(app.current_student_id)
 
-        self.ids.voucher_status_container.clear_widgets()
+        def callback(request, result):
+            self.ids.voucher_status_container.clear_widgets()
 
-        if not vouchers:
-            no_vouchers = MDLabel(
-                text="No voucher purchases yet",
+            if result.get('status') != 'success' or not result.get('data'):
+                no_vouchers = MDLabel(
+                    text="No voucher purchases yet",
+                    halign='center',
+                    theme_text_color='Secondary'
+                )
+                self.ids.voucher_status_container.add_widget(no_vouchers)
+                return
+
+            vouchers = result.get('data', [])
+            for voucher in vouchers:
+                card = VoucherStatusCard(
+                    voucher_id=voucher.get('id'),
+                    voucher_type=voucher.get('voucher_type'),
+                    status=voucher.get('status')
+                )
+                self.ids.voucher_status_container.add_widget(card)
+
+        def error_callback(request, error):
+            self.ids.voucher_status_container.clear_widgets()
+            error_label = MDLabel(
+                text="Failed to load vouchers",
                 halign='center',
-                theme_text_color='Secondary'
+                theme_text_color='Error'
             )
-            self.ids.voucher_status_container.add_widget(no_vouchers)
-            return
+            self.ids.voucher_status_container.add_widget(error_label)
 
-        for voucher_id, voucher_type, status in vouchers:
-            card = VoucherStatusCard(
-                voucher_id=voucher_id,
-                voucher_type=voucher_type,
-                status=status
-            )
-            self.ids.voucher_status_container.add_widget(card)
+        get_student_vouchers(app.current_student_id, callback, error_callback)
 
-class TeacherHomePage(Screen): pass
 
-class CleanerListPage(Screen):
+class TeacherHomePage(Screen):
+    pass
+
+
+class StudentCleanerListPage(Screen):
     def on_enter(self):
         self.display_cleaners()
 
     def display_cleaners(self):
-        from kivymd.uix.label import MDLabel
-        from kivymd.uix.card import MDCard
-        from kivymd.uix.boxlayout import MDBoxLayout
-        from kivymd.uix.list import OneLineListItem
-        from kivy.metrics import dp  # <-- you forgot to import dp here!
-
         app = MDApp.get_running_app()
-        section = app.section
 
-        import sqlite3
-        conn = sqlite3.connect("malin_ease.db")
-        cursor = conn.cursor()
+        def callback(request, result):
+            self.ids.cleaners_list.clear_widgets()
 
-        cursor.execute("SELECT name, cleaning_day FROM students WHERE lower(section) = ?", (section.lower(),))
-        students = cursor.fetchall()
-        conn.close()
+            if result.get('status') != 'success':
+                error_label = MDLabel(
+                    text="Failed to load cleaner list",
+                    halign='center',
+                    theme_text_color='Error'
+                )
+                self.ids.cleaners_list.add_widget(error_label)
+                return
 
-        # Group students by cleaning day
-        cleaners_by_day = {day: [] for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']}
-        for name, cleaning_day in students:
-            if cleaning_day in cleaners_by_day:
-                cleaners_by_day[cleaning_day].append(name)
+            cleaners_by_day = result.get('data', {})
 
-        # Clear previous widgets
-        self.ids.cleaners_list.clear_widgets()
+            for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']:
+                day_card = MDCard(
+                    orientation='vertical',
+                    size_hint=(1, None),
+                    padding=dp(10),
+                    spacing=dp(5),
+                    elevation=4,
+                    radius=[15, 15, 15, 15],
+                    md_bg_color=(1, 1, 1, 1)
+                )
+                day_card.bind(minimum_height=day_card.setter('height'))
 
-        for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']:
-            # Create a card for each day
-            day_card = MDCard(
-                orientation='vertical',
-                size_hint=(1, None),
-                padding=dp(10),
-                spacing=dp(5),
-                elevation=4,
-                radius=[15, 15, 15, 15],
-                md_bg_color=(1, 1, 1, 1)
+                day_title = MDLabel(
+                    text=day,
+                    bold=True,
+                    font_style='H6',
+                    theme_text_color='Primary',
+                    size_hint_y=None,
+                    height=dp(30)
+                )
+                day_card.add_widget(day_title)
+
+                students_list = cleaners_by_day.get(day, [])
+                if students_list:
+                    for name in students_list:
+                        item = MDLabel(
+                            text=name,
+                            theme_text_color='Secondary',
+                            size_hint_y=None,
+                            height=dp(30))
+                        day_card.add_widget(item)
+                else:
+                    item = MDLabel(
+                        text="No students assigned",
+                        theme_text_color='Secondary',
+                        size_hint_y=None,
+                        height=dp(30))
+                    day_card.add_widget(item)
+
+                # FIX: This must be outside the `else` to always add the card
+                self.ids.cleaners_list.add_widget(day_card)
+
+        def error_callback(request, error):
+            self.ids.cleaners_list.clear_widgets()
+            error_label = MDLabel(
+                text="Connection error",
+                halign='center',
+                theme_text_color='Error'
             )
-            day_card.bind(minimum_height=day_card.setter('height'))
+            self.ids.cleaners_list.add_widget(error_label)
 
-            # Day title
-            day_title = MDLabel(
-                text=day,
-                bold=True,
-                font_style='H6',
-                theme_text_color='Primary',
-                size_hint_y=None,
-                height=dp(30)
-            )
-            day_card.add_widget(day_title)
-
-            # Students list
-            students_list = cleaners_by_day.get(day)
-            if students_list:
-                for name in students_list:
-                    day_card.add_widget(OneLineListItem(text=name))
-            else:
-                day_card.add_widget(OneLineListItem(text="No students assigned"))
-
-            # Add day card to the cleaners list container
-            self.ids.cleaners_list.add_widget(day_card)
+        get_cleaners_list(app.section, callback, error_callback)
 
 
-    def go_back(self):
+class TeacherCleanerListPage(Screen):
+    def on_enter(self):
+        self.display_cleaners()
+
+    def display_cleaners(self):
         app = MDApp.get_running_app()
-        if app.root.get_screen('signin').role == "Student":
-            app.root.current = 'student_home'
-        else:
-            app.root.current = 'teacher_home'
+
+        def callback(request, result):
+            self.ids.cleaners_list.clear_widgets()
+
+            if result.get('status') != 'success':
+                error_label = MDLabel(
+                    text="Failed to load cleaner list",
+                    halign='center',
+                    theme_text_color='Error'
+                )
+                self.ids.cleaners_list.add_widget(error_label)
+                return
+
+            cleaners_by_day = result.get('data', {})
+
+            for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']:
+                day_card = MDCard(
+                    orientation='vertical',
+                    size_hint=(1, None),
+                    padding=dp(10),
+                    spacing=dp(5),
+                    elevation=4,
+                    radius=[15, 15, 15, 15],
+                    md_bg_color=(1, 1, 1, 1)
+                )
+                day_card.bind(minimum_height=day_card.setter('height'))
+
+                day_title = MDLabel(
+                    text=day,
+                    bold=True,
+                    font_style='H6',
+                    theme_text_color='Primary',
+                    size_hint_y=None,
+                    height=dp(30)
+                )
+                day_card.add_widget(day_title)
+
+                students_list = cleaners_by_day.get(day, [])
+                if students_list:
+                    for name in students_list:
+                        item = MDLabel(
+                            text=name,
+                            theme_text_color='Secondary',
+                            size_hint_y=None,
+                            height=dp(30))
+                        day_card.add_widget(item)
+                else:
+                    item = MDLabel(
+                        text="No students assigned",
+                        theme_text_color='Secondary',
+                        size_hint_y=None,
+                        height=dp(30))
+                    day_card.add_widget(item)
+
+                # FIX: This must be outside the `else` to always add the card
+                self.ids.cleaners_list.add_widget(day_card)
+
+        def error_callback(request, error):
+            self.ids.cleaners_list.clear_widgets()
+            error_label = MDLabel(
+                text="Connection error",
+                halign='center',
+                theme_text_color='Error'
+            )
+            self.ids.cleaners_list.add_widget(error_label)
+
+        get_cleaners_list(app.section, callback, error_callback)
+
 
 class VoucherShopPage(Screen):
     def on_enter(self):
         self.display_vouchers()
 
     def display_vouchers(self):
-        self.ids.voucher_container.clear_widgets()  # Clear previous vouchers first
+        self.ids.voucher_container.clear_widgets()
         app = MDApp.get_running_app()
-        student_id = app.current_student_id
 
         # Define available vouchers
         vouchers = [
@@ -571,9 +874,6 @@ class VoucherShopPage(Screen):
         ]
 
         for voucher in vouchers:
-            can_purchase = can_purchase_voucher(student_id, voucher['type'])
-
-            # Create card
             card = MDCard(
                 orientation='vertical',
                 size_hint=(1, None),
@@ -583,7 +883,6 @@ class VoucherShopPage(Screen):
                 elevation=2
             )
 
-            # Name label
             name_label = MDLabel(
                 text=voucher['name'],
                 theme_text_color='Primary',
@@ -592,7 +891,6 @@ class VoucherShopPage(Screen):
                 height=dp(30)
             )
 
-            # Description label
             desc_label = MDLabel(
                 text=voucher['description'],
                 theme_text_color='Secondary',
@@ -601,7 +899,6 @@ class VoucherShopPage(Screen):
                 padding=(10, 0)
             )
 
-            # Cost label
             cost_label = MDLabel(
                 text=f"Cost: {voucher['cost']} ratings",
                 theme_text_color='Primary',
@@ -610,295 +907,400 @@ class VoucherShopPage(Screen):
                 bold=True
             )
 
-            # Purchase button
             purchase_btn = MDRaisedButton(
-                text="Purchase" if can_purchase else "Not enough ratings",
-                disabled=not can_purchase,
+                text="Purchase",
                 size_hint_y=None,
                 height=dp(40),
-                on_release=lambda x, v=voucher['type']: self.purchase_voucher(v)
+                on_release=lambda x, v_type=voucher['type']: self.purchase_voucher(v_type)
             )
 
-            # Add widgets to card
             card.add_widget(name_label)
             card.add_widget(desc_label)
             card.add_widget(cost_label)
             card.add_widget(purchase_btn)
 
-            # Add card to voucher container
             self.ids.voucher_container.add_widget(card)
 
     def purchase_voucher(self, voucher_type):
         from kivymd.toast import toast
+        from kivy.network.urlrequest import UrlRequest
         app = MDApp.get_running_app()
 
-        if can_purchase_voucher(app.current_student_id, voucher_type):
-            create_voucher(app.current_student_id, voucher_type)
-            toast("Voucher purchased! Waiting for teacher approval.")
+        url = "http://dirk.x10.mx/Malin_EASE/insertVoucher.php"
+        headers = {'Content-Type': 'application/json'}
+        data = {
+            'student_id': app.current_student_id,
+            'voucher_type': voucher_type
+        }
 
-            # Update student's rating display
-            student = get_student_info(app.current_student_id)
-            if student:
-                name, section, rating = student
-                app.root.get_screen('student_home').ids.student_ratings.text = f"Ratings: {rating}"
+        def purchase_success(req, result):
+            if result.get('status') == 'success':
+                toast("Voucher purchased! Waiting for teacher approval.")
+                # Update the student info and voucher status
+                self.manager.get_screen('student_home').update_student_info()
+                self.manager.get_screen('student_home').display_voucher_statuses()
+                self.manager.current = 'student_home'
+            else:
+                toast(result.get('message', "Failed to purchase voucher."))
 
-            # Return to home and refresh
-            self.manager.current = 'student_home'
-            self.manager.get_screen('student_home').display_voucher_statuses()
-        else:
-            toast("You don't have enough ratings for this voucher.")
+        def purchase_failure(req, error):
+            toast("Connection error. Please try again.")
+
+        # Send the request
+        UrlRequest(
+            url,
+            on_success=purchase_success,
+            on_failure=purchase_failure,
+            on_error=purchase_failure,
+            req_headers=headers,
+            req_body=json.dumps(data),
+            method='POST'
+        )
+
 
 class RatingFormPage(Screen):
     def on_enter(self):
         self.display_groupmates()
+        self.submit_button = None
+        self.has_rated_today = False  # Track if user has rated today
 
     def display_groupmates(self):
         self.ids.rating_form_container.clear_widgets()
         app = MDApp.get_running_app()
-        current_id = app.current_student_id
+        self.submit_button = None
 
-        import sqlite3
-        conn = sqlite3.connect("malin_ease.db")
-        cursor = conn.cursor()
+        def callback(result):
+            try:
+                if result.get('status') != 'success':
+                    error_label = MDLabel(
+                        text="Failed to load groupmates",
+                        halign='center',
+                        theme_text_color='Error'
+                    )
+                    self.ids.rating_form_container.add_widget(error_label)
+                    return
 
-        cursor.execute("SELECT cleaning_day FROM students WHERE student_id = ?", (current_id,))
-        result = cursor.fetchone()
+                # Check if user has already rated today
+                if result.get('has_rated_today', False):
+                    self.has_rated_today = True
+                    rated_label = MDLabel(
+                        text="You have already submitted ratings today",
+                        halign='center',
+                        theme_text_color='Secondary'
+                    )
+                    self.ids.rating_form_container.add_widget(rated_label)
+                    return
 
-        if result:
-            cleaning_day = result[0]
+                students = result.get('data', [])
+                if not students:
+                    no_groupmates = MDLabel(
+                        text="No groupmates found for your cleaning day",
+                        halign='center',
+                        theme_text_color='Secondary'
+                    )
+                    self.ids.rating_form_container.add_widget(no_groupmates)
+                    return
 
-            cursor.execute("""
-                SELECT student_id, name FROM students 
-                WHERE cleaning_day = ? AND student_id != ?
-            """, (cleaning_day, current_id))
-            groupmates = cursor.fetchall()
+                self.slider_data = {}
 
-            self.slider_data = {}
+                for student in students:
+                    sid = student.get('student_id')
+                    name = student.get('name')
 
-            for sid, name in groupmates:
-                card = MDCard(orientation="vertical", padding=10, size_hint_y=None)
-                card.height = dp(100)
+                    if not sid or not name:
+                        continue
 
-                label = MDLabel(text=name, halign="center")
-                slider = MDSlider(min=0, max=10, value=5, step=1)
-                self.slider_data[sid] = slider
+                    card = MDCard(orientation="vertical", padding=10, size_hint_y=None)
+                    card.height = dp(100)
 
-                card.add_widget(label)
-                card.add_widget(slider)
-                self.ids.rating_form_container.add_widget(card)
+                    label = MDLabel(text=name, halign="center")
+                    slider = MDSlider(min=0, max=10, value=5, step=1)
+                    self.slider_data[sid] = slider
 
-            submit_btn = MDRaisedButton(
-                text="Submit Ratings",
-                pos_hint={"center_x": 0.5},
-                on_release=self.submit_ratings
+                    card.add_widget(label)
+                    card.add_widget(slider)
+                    self.ids.rating_form_container.add_widget(card)
+
+                self.submit_button = MDRaisedButton(
+                    text="Submit Ratings",
+                    pos_hint={"center_x": 0.5},
+                    on_release=self.submit_ratings,
+                    disabled=False
+                )
+                self.ids.rating_form_container.add_widget(self.submit_button)
+            except Exception as e:
+                print(f"Error processing groupmates: {e}")
+
+        def error_callback(error):
+            error_label = MDLabel(
+                text="Connection error",
+                halign='center',
+                theme_text_color='Error'
             )
-            self.ids.rating_form_container.add_widget(submit_btn)
+            self.ids.rating_form_container.add_widget(error_label)
 
-        conn.close()
+        self.make_request(
+            'get_groupmates.php',
+            {
+                'student_id': app.current_student_id,
+                'check_rating_status': True  # Request to check if already rated today
+            },
+            callback,
+            error_callback
+        )
 
     def submit_ratings(self, instance):
+        if self.has_rated_today:
+            return
+
         from kivymd.toast import toast
-        import sqlite3
         app = MDApp.get_running_app()
-        current_id = app.current_student_id
 
-        conn = sqlite3.connect("malin_ease.db")
-        cursor = conn.cursor()
+        if not hasattr(self, 'slider_data') or not self.slider_data:
+            toast("No groupmates to rate")
+            return
 
+        if self.submit_button:
+            self.submit_button.disabled = True
+            self.submit_button.text = "Submitting..."
+
+        ratings = []
         for sid, slider in self.slider_data.items():
-            points = int(slider.value)
-            cursor.execute("INSERT INTO ratings (student_id, rated_by, rating) VALUES (?, ?, ?)", (sid, current_id, points))
-            cursor.execute("UPDATE students SET rating = rating + ? WHERE student_id = ?", (points, sid))
+            ratings.append({
+                'student_id': sid,
+                'rating': int(slider.value)
+            })
 
-        conn.commit()
-        conn.close()
+        def callback(result):
+            if result.get('status') == 'success':
+                toast("Ratings submitted successfully!")
+                if self.submit_button:
+                    self.submit_button.disabled = True
+                    self.submit_button.text = "Ratings Submitted"
+                self.has_rated_today = True
+                self.manager.get_screen('student_home').update_student_info()
+                self.manager.current = 'student_home'
+            else:
+                toast(result.get('message', "Failed to submit ratings."))
+                if self.submit_button:
+                    self.submit_button.disabled = False
+                    self.submit_button.text = "Submit Ratings"
 
-        toast("Ratings submitted successfully!")
-        app.root.current = 'student_home'
+        def error_callback(error):
+            toast(f"Error: {error}")
+            print("Full error details:", error)
+            if self.submit_button:
+                self.submit_button.disabled = False
+                self.submit_button.text = "Submit Ratings"
+
+        self.make_request(
+            'submit_ratings.php',
+            {
+                'rated_by': app.current_student_id,
+                'ratings': ratings
+            },
+            callback,
+            error_callback
+        )
+
+    def make_request(self, endpoint, data, success_callback, error_callback):
+        """Helper method to make HTTP requests"""
+        base_url = "http://dirk.x10.mx/Malin_EASE/"
+        url = f"{base_url}{endpoint}"
+
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+
+        UrlRequest(
+            url,
+            req_body=json.dumps(data),
+            on_success=lambda req, res: success_callback(res),
+            on_error=lambda req, error: error_callback(error),
+            on_failure=lambda req, result: error_callback(result),
+            req_headers=headers
+        )
+
+
+BASE_URL = "http://dirk.x10.mx/Malin_EASE/"
+
 
 class VoucherApprovalPage(Screen):
     def on_enter(self):
         self.display_pending_vouchers()
 
     def display_pending_vouchers(self):
-        from kivymd.uix.card import MDCard
-        from kivymd.uix.label import MDLabel
-        from kivymd.uix.boxlayout import MDBoxLayout
-        from kivymd.uix.button import MDRaisedButton, MDFlatButton
-
         self.ids.voucher_approval_container.clear_widgets()
 
-        vouchers = get_pending_vouchers()
+        try:
+            response = requests.get(urljoin(BASE_URL, "get_pending_vouchers.php"))
+            result = response.json()
 
-        for voucher_id, student_name, voucher_type in vouchers:
-            # ... existing card creation code ...
-            type_label = MDLabel(
-                text=f"Voucher: {self.get_voucher_name(voucher_type)}",
-                theme_text_color='Primary',
-                size_hint_y=None,
-                height=dp(30))
+            if not result.get('success'):
+                error_msg = result.get('error', 'Unknown error occurred')
+                toast(f"Error: {error_msg}")
+                self.show_no_vouchers()
+                return
 
-        if not vouchers:
-            no_vouchers = MDLabel(
-                text="No pending vouchers",
-                halign='center',
-                theme_text_color='Secondary'
-            )
-            self.ids.voucher_approval_container.add_widget(no_vouchers)
-            return
+            vouchers = result.get('data', [])
+            if not vouchers:
+                self.show_no_vouchers()
+                return
 
-        for voucher_id, student_name, voucher_type in vouchers:
-            card = MDCard(
-                orientation='vertical',
-                size_hint=(1, None),
-                height=dp(150),
-                padding=dp(15),
-                spacing=dp(10)
-            )
+            for voucher in vouchers:
+                card = MDCard(
+                    orientation='vertical',
+                    size_hint=(1, None),
+                    height=dp(150),
+                    padding=dp(15),
+                    spacing=dp(10)
+                )
 
-            student_label = MDLabel(
-                text=f"Student: {student_name}",
-                theme_text_color='Primary',
-                size_hint_y=None,
-                height=dp(30))
+                student_label = MDLabel(
+                    text=f"Student: {voucher.get('student_name', '')}",
+                    theme_text_color='Primary',
+                    size_hint_y=None,
+                    height=dp(30))
 
-            type_label = MDLabel(
-                text=f"Voucher: {self.get_voucher_name(voucher_type)}",
-                theme_text_color='Primary',
-                size_hint_y=None,
-                height=dp(30))
+                type_label = MDLabel(
+                    text=f"Voucher: {self.get_voucher_name(voucher.get('voucher_type', ''))}",
+                    theme_text_color='Primary',
+                    size_hint_y=None,
+                    height=dp(30))
 
-            btn_box = MDBoxLayout(
-                spacing=dp(10),
-                size_hint_y=None,
-                height=dp(50))
+                btn_box = MDBoxLayout(
+                    spacing=dp(10),
+                    size_hint_y=None,
+                    height=dp(50))
 
-            approve_btn = MDRaisedButton(
-                text="Approve",
-                on_release=lambda x, vid=voucher_id: self.process_voucher(vid, True))
+                approve_btn = MDRaisedButton(
+                    text="Approve",
+                    on_release=lambda x, vid=voucher.get('voucher_id'): self.process_voucher(vid, True))
 
-            reject_btn = MDFlatButton(
-                text="Reject",
-                theme_text_color='Error',
-                on_release=lambda x, vid=voucher_id: self.process_voucher(vid, False))
+                reject_btn = MDFlatButton(
+                    text="Reject",
+                    theme_text_color='Error',
+                    on_release=lambda x, vid=voucher.get('voucher_id'): self.process_voucher(vid, False))
 
-            btn_box.add_widget(approve_btn)
-            btn_box.add_widget(reject_btn)
+                btn_box.add_widget(approve_btn)
+                btn_box.add_widget(reject_btn)
 
-            card.add_widget(student_label)
-            card.add_widget(type_label)
-            card.add_widget(btn_box)
+                card.add_widget(student_label)
+                card.add_widget(type_label)
+                card.add_widget(btn_box)
 
-            self.ids.voucher_approval_container.add_widget(card)
+                self.ids.voucher_approval_container.add_widget(card)
+
+        except requests.exceptions.RequestException as e:
+            toast("Connection error. Please try again.")
+            print(f"Network error: {e}")
+        except Exception as e:
+            toast("Failed to load vouchers")
+            print(f"Error: {e}")
+
+    def show_no_vouchers(self):
+        no_vouchers = MDLabel(
+            text="No pending vouchers",
+            halign='center',
+            theme_text_color='Secondary'
+        )
+        self.ids.voucher_approval_container.add_widget(no_vouchers)
 
     def get_voucher_name(self, voucher_type):
         names = {'skip_cleaning': 'Skip Cleaning Pass'}
         return names.get(voucher_type, voucher_type)
 
     def process_voucher(self, voucher_id, approve):
-        from kivymd.toast import toast
+        try:
+            endpoint = "approve_voucher.php" if approve else "reject_voucher.php"
+            response = requests.post(
+                urljoin(BASE_URL, endpoint),
+                json={'voucher_id': voucher_id},  # Changed from data to json
+                headers={'Content-Type': 'application/json'}
+            )
+            result = response.json()
 
-        if approve:
-            success = approve_voucher(voucher_id)
-            toast("Voucher approved and applied!" if success else "Failed to approve voucher")
-        else:
-            reject_voucher(voucher_id)
-            toast("Voucher rejected")
+            if result.get('success'):
+                toast(result.get('message', "Voucher processed successfully"))
+                self.display_pending_vouchers()
 
-        self.display_pending_vouchers()
+                # Update student info if needed
+                if approve:
+                    self.manager.get_screen('student_home').update_student_info()
+            else:
+                error_msg = result.get('error', 'Failed to process voucher')
+                toast(f"Error: {error_msg}")
+        except requests.exceptions.RequestException as e:
+            toast("Connection error. Please try again.")
+            print(f"Network error: {e}")
+        except Exception as e:
+            toast("Failed to process voucher")
+            print(f"Error: {e}")
+
 
 class StudentRatingsPage(Screen):
     def on_enter(self):
         self.display_student_ratings()
 
     def display_student_ratings(self):
-        from kivymd.uix.card import MDCard
-        from kivymd.uix.label import MDLabel
-        from kivymd.uix.boxlayout import MDBoxLayout
-        from kivymd.app import MDApp
-        from kivy.metrics import dp
-
         app = MDApp.get_running_app()
-        section = app.section
 
-        import sqlite3
-        conn = sqlite3.connect("malin_ease.db")
-        cursor = conn.cursor()
+        def callback(request, result):
+            self.ids.student_ratings_list.clear_widgets()
 
-        cursor.execute("SELECT name, rating FROM students WHERE lower(section) = ? ORDER BY name ASC", (section.lower(),))
-        students = cursor.fetchall()
-        conn.close()
+            if result.get('status') != 'success' or not result.get('data'):
+                no_data_label = MDLabel(
+                    text="No ratings available.",
+                    halign='center',
+                    theme_text_color='Secondary'
+                )
+                self.ids.student_ratings_list.add_widget(no_data_label)
+                return
 
-        self.ids.student_ratings_list.clear_widgets()
+            students = result.get('data', [])
+            for student in students:
+                student_card = MDCard(
+                    orientation='vertical',
+                    size_hint=(1, None),
+                    padding=dp(10),
+                    spacing=dp(5),
+                    elevation=4,
+                    radius=[15, 15, 15, 15],
+                    md_bg_color=(1, 1, 1, 1)
+                )
+                student_card.bind(minimum_height=student_card.setter('height'))
 
-        if not students:
-            no_data_label = MDLabel(
-                text="No ratings available.",
+                name_label = MDLabel(
+                    text=f"{student.get('name', '')}",
+                    theme_text_color='Primary',
+                    font_style='H6',
+                    size_hint_y=None,
+                    height=dp(30)
+                )
+                rating_label = MDLabel(
+                    text=f"Total Points: {student.get('rating', 0)}",
+                    theme_text_color='Secondary',
+                    size_hint_y=None,
+                    height=dp(24)
+                )
+
+                student_card.add_widget(name_label)
+                student_card.add_widget(rating_label)
+
+                self.ids.student_ratings_list.add_widget(student_card)
+
+        def error_callback(request, error):
+            self.ids.student_ratings_list.clear_widgets()
+            error_label = MDLabel(
+                text="Failed to load ratings",
                 halign='center',
-                theme_text_color='Secondary'
+                theme_text_color='Error'
             )
-            self.ids.student_ratings_list.add_widget(no_data_label)
-            return
+            self.ids.student_ratings_list.add_widget(error_label)
 
-        for name, rating in students:
-            student_card = MDCard(
-                orientation='vertical',
-                size_hint=(1, None),
-                padding=dp(10),
-                spacing=dp(5),
-                elevation=4,
-                radius=[15, 15, 15, 15],
-                md_bg_color=(1, 1, 1, 1)
-            )
-            student_card.bind(minimum_height=student_card.setter('height'))
+        get_student_ratings(app.section, callback, error_callback)
 
-            name_label = MDLabel(
-                text=f"{name}",
-                theme_text_color='Primary',
-                font_style='H6',
-                size_hint_y=None,
-                height=dp(30)
-            )
-            rating_label = MDLabel(
-                text=f"Total Points: {rating}",
-                theme_text_color='Secondary',
-                size_hint_y=None,
-                height=dp(24)
-            )
-
-            student_card.add_widget(name_label)
-            student_card.add_widget(rating_label)
-
-            self.ids.student_ratings_list.add_widget(student_card)
-
-            def submit_ratings(self, instance):
-                from kivymd.toast import toast
-                import sqlite3
-                app = MDApp.get_running_app()
-                current_id = app.current_student_id
-
-                conn = sqlite3.connect("malin_ease.db")
-                cursor = conn.cursor()
-
-                for sid, slider in self.slider_data.items():
-                    points = int(slider.value)
-                    cursor.execute("INSERT INTO ratings (student_id, rated_by, rating) VALUES (?, ?, ?)",
-                                   (sid, current_id, points))
-                    cursor.execute("UPDATE students SET rating = rating + ? WHERE student_id = ?",
-                                   (points, sid))
-
-                conn.commit()
-                conn.close()
-
-                # Refresh student info display
-                student = get_student_info(current_id)
-                if student:
-                    name, section, rating = student
-                    app.root.get_screen('student_home').ids.student_info.text = f"{name} | Section: {section}"
-                    app.root.get_screen('student_home').ids.student_ratings.text = f"Ratings: {rating}"
-
-                toast("Ratings submitted successfully!")
-                app.root.current = 'student_home'
 
 class MalinEASEApp(MDApp):
     section = StringProperty("")
@@ -928,31 +1330,18 @@ class MalinEASEApp(MDApp):
 
     def show_voucher_notification(self):
         from kivymd.toast import toast
-        pending = get_pending_vouchers()
-        if pending:
-            toast(f"You have {len(pending)} voucher requests pending approval")
 
-    def get_voucher_name(self, voucher_type):
-        names = {
-            'skip_cleaning': 'Skip Cleaning Pass'
-        }
-        return names.get(voucher_type, voucher_type)
+        def callback(request, result):
+            if result.get('status') == 'success':
+                pending = result.get('data', [])
+                if pending:
+                    toast(f"You have {len(pending)} voucher requests pending approval")
 
-    def process_voucher(self, voucher_id, approve):
-        from kivymd.toast import toast
-        from database import approve_voucher, reject_voucher
+        def error_callback(request, error):
+            pass  # Silently fail
 
-        if approve:
-            success = approve_voucher(voucher_id)
-            if success:
-                toast("Voucher approved and applied!")
-            else:
-                toast("Failed to approve voucher")
-        else:
-            reject_voucher(voucher_id)
-            toast("Voucher rejected")
+        get_pending_vouchers(callback, error_callback)
 
-        self.display_pending_vouchers()
 
 if __name__ == '__main__':
     MalinEASEApp().run()
