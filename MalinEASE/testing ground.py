@@ -17,16 +17,11 @@ import urllib.parse
 from kivymd.toast import toast
 import requests
 from urllib.parse import urljoin
-from kivy.clock import Clock
-
-from MalinEASE.database import student_id
 
 Window.size = (360, 640)
 
 # --- API Configuration ---
 API_BASE_URL = "http://dirk.x10.mx/Malin_EASE/api.php"  # Replace with your actual domain
-
-
 
 
 def api_request(action, params=None, method='GET', callback=None, error_callback=None):
@@ -69,7 +64,6 @@ def api_request(action, params=None, method='GET', callback=None, error_callback
     )
 
 
-
 def section_exists(section, callback, error_callback=None):
     """Check if section exists"""
     api_request('section_exists', {'section': section},
@@ -88,10 +82,7 @@ def get_teacher_info(teacher_id, callback, error_callback=None):
                 callback=callback, error_callback=error_callback)
 
 
-
-
-
-#---------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------
 def create_voucher(student_id, voucher_type, callback, error_callback=None):
     """Create a new voucher"""
     api_request('create_voucher',
@@ -100,7 +91,7 @@ def create_voucher(student_id, voucher_type, callback, error_callback=None):
                 callback=callback, error_callback=error_callback)
 
 
-#---------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------
 
 def get_pending_vouchers(callback, error_callback=None):
     """Get pending vouchers"""
@@ -122,12 +113,13 @@ def reject_voucher(voucher_id, callback, error_callback=None):
                 callback=callback, error_callback=error_callback)
 
 
-#---------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------
 def can_purchase_voucher(student_id, voucher_type, callback, error_callback=None):
     """Check if student can purchase voucher"""
     api_request('can_purchase_voucher',
                 {'student_id': student_id, 'voucher_type': voucher_type},
                 callback=callback, error_callback=error_callback)
+
 
 def get_student_vouchers(student_id, callback, error_callback=None):
     """Get student's vouchers"""
@@ -135,10 +127,7 @@ def get_student_vouchers(student_id, callback, error_callback=None):
                 callback=callback, error_callback=error_callback)
 
 
-#---------------------------------------------------------------------------------------
-
-
-
+# ---------------------------------------------------------------------------------------
 
 
 def get_cleaners_list(section, callback, error_callback=None):
@@ -197,7 +186,7 @@ ScreenManager:
             id: section_input
             hint_text: 'Enter your section (ex: BSCPE 2b)'
             mode: 'rectangle' 
-            
+
         MDRaisedButton:
             text: 'Submit'
             pos_hint: {"center_x": .5}
@@ -378,7 +367,7 @@ ScreenManager:
                 text: 'Voucher Approval'
                 on_press: app.root.current = 'voucher_approval'
                 size_hint_x: 0.5
-                
+
         # Student Ratings button centered below
         MDRaisedButton:
             text: 'Student Ratings'
@@ -541,7 +530,7 @@ class VoucherStatusCard(MDCard):
             orientation='vertical',
             size_hint=(1, None),
             height=dp(100),  # Smaller height
-            padding=dp(8),   # Less padding
+            padding=dp(8),  # Less padding
             **kwargs
         )
         self.ids.voucher_type_label.text = f"{voucher_type.replace('_', ' ').title()} Voucher"
@@ -550,8 +539,6 @@ class VoucherStatusCard(MDCard):
             'approved': get_color_from_hex('#4CAF50'),
             'rejected': get_color_from_hex('#F44336'),
         }.get(status, get_color_from_hex('#FFC107'))
-
-
 
 
 # --- Screen Classes ---
@@ -710,8 +697,10 @@ class StudentHomePage(Screen):
 
         get_student_vouchers(app.current_student_id, callback, error_callback)
 
+
 class TeacherHomePage(Screen):
     pass
+
 
 class StudentCleanerListPage(Screen):
     def on_enter(self):
@@ -786,6 +775,8 @@ class StudentCleanerListPage(Screen):
             self.ids.cleaners_list.add_widget(error_label)
 
         get_cleaners_list(app.section, callback, error_callback)
+
+
 class TeacherCleanerListPage(Screen):
     def on_enter(self):
         self.display_cleaners()
@@ -860,6 +851,7 @@ class TeacherCleanerListPage(Screen):
 
         get_cleaners_list(app.section, callback, error_callback)
 
+
 class VoucherShopPage(Screen):
     def on_enter(self):
         self.display_vouchers()
@@ -873,7 +865,7 @@ class VoucherShopPage(Screen):
             {
                 'type': 'skip_cleaning',
                 'name': 'Skip Cleaning Pass',
-                'description': 'Skip cleaning next week and get automatic 5 rating points',
+                'description': 'Skip cleaning this week',
                 'cost': 20
             }
         ]
@@ -1127,9 +1119,7 @@ class RatingFormPage(Screen):
             req_headers=headers
         )
 
-
 BASE_URL = "http://dirk.x10.mx/Malin_EASE/"
-
 
 class VoucherApprovalPage(Screen):
     def on_enter(self):
@@ -1243,8 +1233,6 @@ class VoucherApprovalPage(Screen):
             toast("Failed to process voucher")
             print(f"Error: {e}")
 
-
-
 class StudentRatingsPage(Screen):
     def on_enter(self):
         self.display_student_ratings()
@@ -1252,49 +1240,62 @@ class StudentRatingsPage(Screen):
     def display_student_ratings(self):
         app = MDApp.get_running_app()
 
-        def callback(request, result):
+        # Define the callback functions first
+        def success_callback(request, result):
             self.ids.student_ratings_list.clear_widgets()
 
-            if result.get('status') != 'success' or not result.get('data'):
-                no_data_label = MDLabel(
-                    text="No ratings available.",
+            try:
+                if isinstance(result, str):
+                    result = json.loads(result)
+
+                if result.get('status') != 'success' or not result.get('data'):
+                    no_data_label = MDLabel(
+                        text="No ratings available.",
+                        halign='center',
+                        theme_text_color='Secondary'
+                    )
+                    self.ids.student_ratings_list.add_widget(no_data_label)
+                    return
+
+                students = result.get('data', [])
+                for student in students:
+                    student_card = MDCard(
+                        orientation='vertical',
+                        size_hint=(1, None),
+                        padding=dp(10),
+                        spacing=dp(5),
+                        elevation=4,
+                        radius=[15, 15, 15, 15],
+                        md_bg_color=(1, 1, 1, 1)
+                    )
+                    student_card.bind(minimum_height=student_card.setter('height'))
+
+                    name_label = MDLabel(
+                        text=f"{student.get('name', '')}",
+                        theme_text_color='Primary',
+                        font_style='H6',
+                        size_hint_y=None,
+                        height=dp(30)
+                    )
+                    rating_label = MDLabel(
+                        text=f"Total Points: {student.get('rating', 0)}",
+                        theme_text_color='Secondary',
+                        size_hint_y=None,
+                        height=dp(24)
+                    )
+
+                    student_card.add_widget(name_label)
+                    student_card.add_widget(rating_label)
+
+                    self.ids.student_ratings_list.add_widget(student_card)
+
+            except Exception as e:
+                error_label = MDLabel(
+                    text="Error processing data",
                     halign='center',
-                    theme_text_color='Secondary'
+                    theme_text_color='Error'
                 )
-                self.ids.student_ratings_list.add_widget(no_data_label)
-                return
-
-            students = result.get('data', [])
-            for student in students:
-                student_card = MDCard(
-                    orientation='vertical',
-                    size_hint=(1, None),
-                    padding=dp(10),
-                    spacing=dp(5),
-                    elevation=4,
-                    radius=[15, 15, 15, 15],
-                    md_bg_color=(1, 1, 1, 1)
-                )
-                student_card.bind(minimum_height=student_card.setter('height'))
-
-                name_label = MDLabel(
-                    text=f"{student.get('name', '')}",
-                    theme_text_color='Primary',
-                    font_style='H6',
-                    size_hint_y=None,
-                    height=dp(30)
-                )
-                rating_label = MDLabel(
-                    text=f"Total Points: {student.get('rating', 0)}",
-                    theme_text_color='Secondary',
-                    size_hint_y=None,
-                    height=dp(24)
-                )
-
-                student_card.add_widget(name_label)
-                student_card.add_widget(rating_label)
-
-                self.ids.student_ratings_list.add_widget(student_card)
+                self.ids.student_ratings_list.add_widget(error_label)
 
         def error_callback(request, error):
             self.ids.student_ratings_list.clear_widgets()
@@ -1305,7 +1306,8 @@ class StudentRatingsPage(Screen):
             )
             self.ids.student_ratings_list.add_widget(error_label)
 
-        get_student_ratings(app.section, callback, error_callback)
+        # Now call get_student_ratings with both arguments
+        get_student_ratings(app.section, success_callback, error_callback)
 
 
 class MalinEASEApp(MDApp):
