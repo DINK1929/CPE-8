@@ -17,9 +17,6 @@ import urllib.parse
 from kivymd.toast import toast
 import requests
 from urllib.parse import urljoin
-from kivy.clock import Clock
-
-from MalinEASE.database import student_id
 
 Window.size = (360, 640)
 
@@ -868,7 +865,7 @@ class VoucherShopPage(Screen):
             {
                 'type': 'skip_cleaning',
                 'name': 'Skip Cleaning Pass',
-                'description': 'Skip cleaning next week and get automatic 5 rating points',
+                'description': 'Skip cleaning this week',
                 'cost': 20
             }
         ]
@@ -1122,9 +1119,7 @@ class RatingFormPage(Screen):
             req_headers=headers
         )
 
-
 BASE_URL = "http://dirk.x10.mx/Malin_EASE/"
-
 
 class VoucherApprovalPage(Screen):
     def on_enter(self):
@@ -1238,7 +1233,6 @@ class VoucherApprovalPage(Screen):
             toast("Failed to process voucher")
             print(f"Error: {e}")
 
-
 class StudentRatingsPage(Screen):
     def on_enter(self):
         self.display_student_ratings()
@@ -1246,49 +1240,62 @@ class StudentRatingsPage(Screen):
     def display_student_ratings(self):
         app = MDApp.get_running_app()
 
-        def callback(request, result):
+        # Define the callback functions first
+        def success_callback(request, result):
             self.ids.student_ratings_list.clear_widgets()
 
-            if result.get('status') != 'success' or not result.get('data'):
-                no_data_label = MDLabel(
-                    text="No ratings available.",
+            try:
+                if isinstance(result, str):
+                    result = json.loads(result)
+
+                if result.get('status') != 'success' or not result.get('data'):
+                    no_data_label = MDLabel(
+                        text="No ratings available.",
+                        halign='center',
+                        theme_text_color='Secondary'
+                    )
+                    self.ids.student_ratings_list.add_widget(no_data_label)
+                    return
+
+                students = result.get('data', [])
+                for student in students:
+                    student_card = MDCard(
+                        orientation='vertical',
+                        size_hint=(1, None),
+                        padding=dp(10),
+                        spacing=dp(5),
+                        elevation=4,
+                        radius=[15, 15, 15, 15],
+                        md_bg_color=(1, 1, 1, 1)
+                    )
+                    student_card.bind(minimum_height=student_card.setter('height'))
+
+                    name_label = MDLabel(
+                        text=f"{student.get('name', '')}",
+                        theme_text_color='Primary',
+                        font_style='H6',
+                        size_hint_y=None,
+                        height=dp(30)
+                    )
+                    rating_label = MDLabel(
+                        text=f"Total Points: {student.get('rating', 0)}",
+                        theme_text_color='Secondary',
+                        size_hint_y=None,
+                        height=dp(24)
+                    )
+
+                    student_card.add_widget(name_label)
+                    student_card.add_widget(rating_label)
+
+                    self.ids.student_ratings_list.add_widget(student_card)
+
+            except Exception as e:
+                error_label = MDLabel(
+                    text="Error processing data",
                     halign='center',
-                    theme_text_color='Secondary'
+                    theme_text_color='Error'
                 )
-                self.ids.student_ratings_list.add_widget(no_data_label)
-                return
-
-            students = result.get('data', [])
-            for student in students:
-                student_card = MDCard(
-                    orientation='vertical',
-                    size_hint=(1, None),
-                    padding=dp(10),
-                    spacing=dp(5),
-                    elevation=4,
-                    radius=[15, 15, 15, 15],
-                    md_bg_color=(1, 1, 1, 1)
-                )
-                student_card.bind(minimum_height=student_card.setter('height'))
-
-                name_label = MDLabel(
-                    text=f"{student.get('name', '')}",
-                    theme_text_color='Primary',
-                    font_style='H6',
-                    size_hint_y=None,
-                    height=dp(30)
-                )
-                rating_label = MDLabel(
-                    text=f"Total Points: {student.get('rating', 0)}",
-                    theme_text_color='Secondary',
-                    size_hint_y=None,
-                    height=dp(24)
-                )
-
-                student_card.add_widget(name_label)
-                student_card.add_widget(rating_label)
-
-                self.ids.student_ratings_list.add_widget(student_card)
+                self.ids.student_ratings_list.add_widget(error_label)
 
         def error_callback(request, error):
             self.ids.student_ratings_list.clear_widgets()
@@ -1299,7 +1306,8 @@ class StudentRatingsPage(Screen):
             )
             self.ids.student_ratings_list.add_widget(error_label)
 
-        get_student_ratings(app.section, callback, error_callback)
+        # Now call get_student_ratings with both arguments
+        get_student_ratings(app.section, success_callback, error_callback)
 
 
 class MalinEASEApp(MDApp):
